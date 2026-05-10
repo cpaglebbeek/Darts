@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Darts Proto v0.10 (Audio Knop) - MP3 180 Shout</title>
+  <style>
+    html, body { margin:0; height:100%; background:#0b0f14; color:#e7f0ff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; }
+    #wrap { position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr auto; }
+    header, footer { padding:8px 12px; background:#0f1620; border-bottom:1px solid #1c2633; }
+    footer { border-top:1px solid #1c2633; border-bottom:none; font-size:12px; opacity:.9; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    
+    /* CSS om tekstselectie en contextmenu op knoppen te voorkomen */
+    button { 
+      appearance:none; border:none; padding:8px 10px; border-radius:10px; 
+      background:#1b2736; color:#e7f0ff; 
+      box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 1px 8px rgba(0,0,0,.25); 
+      cursor:pointer; 
+      user-select: none; 
+      -webkit-user-select: none; 
+      touch-action: manipulation; /* Helpt bij mobiele interactie */
+    }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    button:active { transform:translateY(1px); }
+    
+    #canvas { width:100%; height:100%; display:block; touch-action:none; background:#000; }
+    #hud { position:fixed; top:56px; right:12px; background:rgba(8,12,18,.6); padding:8px 10px; border-radius:10px; font:12px/1.35 monospace; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,.08); max-width:50ch; }
+    #ctrl { 
+      position:fixed; top:56px; left:12px; 
+      background:rgba(8,12,18,.6); padding:8px 10px; border-radius:10px; 
+      font:12px/1.35 monospace; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,.08); 
+      max-width:54ch; 
+      /* Standaard verborgen */
+      display: none; 
+    }
+    #ctrl button { padding:4px 8px; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <header>
+      <div class="row">
+        <div>🎯 <strong>Darts Proto</strong> <small id="ver">v0.10</small></div>
+        <div class="row">
+          <button id="btnFull">⛶ Volledig scherm</button>
+          <button id="btnNew">➕ Nieuwe beurt</button>
+          <button id="btnMute" aria-pressed="false">🔈 Geluid</button>
+          <button id="btnTest180">📣 Test 180</button>
+          
+          <button id="btnPlayEmbed">▶️ Speel Audio</button>
+          
+          <button id="btnBg">📷 Kies achtergrond</button>
+          <button id="btnToggleBg">🖼️ Achtergrond Tonen</button>
+          <button id="btnOverlay">🧭 Overlay</button>
+          <button id="btnDebug">⚙️ Kalibratie Paneel Tonen</button>
+        </div>
+      </div>
+    </header>
+    <input id="bgFile" type="file" accept="image/*" style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px;" />
+    <main>
+      <canvas id="canvas" width="1280" height="720" aria-label="Dartboard canvas"></canvas>
+      <div id="hud"></div>
+      <div id="ctrl">
+        <div class="row" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1);">
+            <strong>Kalibratie Paneel</strong> 
+            <button id="btnHideCtrl" style="margin-left: auto;">❌ Verbergen</button>
+        </div>
+        <div>Rotatie: 
+          <button id="rotLargeM">−5°</button> <button id="rotLargeP">+5°</button>
+          <button id="rotM">−0.5°</button> <button id="rotP">+0.5°</button>
+          <span id="rotVal"></span>
+        </div>
+        <div>Center X: 
+          <button id="cxLargeM">−20 px</button> <button id="cxLargeP">+20 px</button>
+          <button id="cxM">−2 px</button> <button id="cxP">+2 px</button>
+          <span id="cxVal"></span>
+        </div>
+        <div>Center Y: 
+          <button id="cyLargeM">−20 px</button> <button id="cyLargeP">+20 px</button>
+          <button id="cyM">−2 px</button> <button id="cyP">+2 px</button>
+          <span id="cyVal"></span>
+        </div>
+        <div>Radius: 
+          <button id="rLargeM">−2%</button> <button id="rLargeP">+2%</button>
+          <button id="rM">−0.2%</button> <button id="rP">+0.2%</button>
+          <span id="rVal"></span>
+        </div>
+        <div><button id="saveCal">💾 Bewaar</button> <small>(local)</small> <button id="resetCal">↺ Reset</button></div>
+      </div>
+    </main>
+    <footer>
+      Max 3 darts per beurt. Scoring volgens bull/outer/single/double/triple & PDC-volgorde. Plaats jouw foto als <code>background.jpg</code> of kies via 📷. Kalibreer met de knoppen links.
+    </footer>
+  </div>
+
+<script>
+(() => {
+  // v0.10: Extra knop toegevoegd (btnPlayEmbed) om ingebedde audio af te spelen.
+  const VER = '0.10';
+  document.getElementById('ver').textContent = 'v'+VER;
+
+  const cvs = document.getElementById('canvas');
+  const ctx = cvs.getContext('2d');
+  const DPR = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  function fit(){
+    const w = window.innerWidth;
+    const h = window.innerHeight - (document.querySelector('header').offsetHeight + document.querySelector('footer').offsetHeight);
+    cvs.width = Math.max(640, (w*DPR)|0);
+    cvs.height = Math.max(360, (h*DPR)|0);
+  }
+  addEventListener('resize', fit, {passive:true}); fit();
+
+  const ORDER = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+  const STORAGE = 'darts-v05-cal';
+  const defaultCal = { cx:526.0, cy:500.0, R_do:408.0, rot:0.0 }; 
+  let cal = {...defaultCal};
+  try{ const s = JSON.parse(localStorage.getItem(STORAGE)||'null'); if(s) cal = s; }catch{}
+
+  const state = {
+    darts:[],
+    turn:1, thrown:0, total:0,
+    overlay:true,
+    showBg: false,
+    bg:{img:null, ready:false, sx:0, sy:0, sw:1, sh:1},
+  };
+
+  const audio = { ctx:null, muted:false, buffer180: null };
+  function ensureAudio(){ if(audio.ctx) return; const C = window.AudioContext||window.webkitAudioContext; if(!C) return; audio.ctx = new C(); }
+  
+  function thunk(){ if(audio.muted) return; ensureAudio(); if(!audio.ctx) return; const t=audio.ctx.currentTime; const o=audio.ctx.createOscillator(); const g=audio.ctx.createGain(); o.type='triangle'; o.frequency.value=160; o.connect(g); g.connect(audio.ctx.destination); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.25, t+.005); g.gain.exponentialRampToValueAtTime(.0001, t+.12); o.start(t); o.stop(t+.18); }
+  function whoosh(){ if(audio.muted) return; ensureAudio(); if(!audio.ctx) return; const t=audio.ctx.currentTime; const o=audio.ctx.createOscillator(); const g=audio.ctx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(880,t); o.frequency.exponentialRampToValueAtTime(240,t+.18); o.connect(g); g.connect(audio.ctx.destination); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.12, t+.02); g.gain.exponentialRampToValueAtTime(.0001, t+.22); o.start(t); o.stop(t+.25); }
+
+  // 180 Shout MP3 afspelen
+  function hundoEighty(){
+    if(audio.muted || !audio.buffer180) return; 
+    ensureAudio(); 
+    if(!audio.ctx) return; 
+    
+    const source = audio.ctx.createBufferSource();
+    source.buffer = audio.buffer180;
+    source.connect(audio.ctx.destination);
+    source.start(0);
+  }
+
+  // --- v0.9: AANGEPAST - Base64 Audio Data verwijderd ---
+  // const base64Mp3 = '...'; // VERWIJDERD
+  
+  // AANGEPAST: Laden van de 180 MP3 van een extern bestand
+  (async function load180Audio() {
+      try {
+          ensureAudio();
+          if (!audio.ctx) return;
+
+          // Veranderd van base64Mp3 naar de bestandsnaam.
+          // Dit zoekt naar het bestand in dezelfde map als de .html
+          const response = await fetch('Best Dart 180 Voice.mp3'); 
+          
+          if (!response.ok) {
+              throw new Error(`Kon audiobestand niet laden: ${response.statusText}`);
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+          audio.buffer180 = await audio.ctx.decodeAudioData(arrayBuffer);
+      } catch (e) {
+          console.error('Fout bij het laden van de 180 audio:', e);
+      }
+  })();
+
+
+  (function tryLoadBG(){
+    const img = new Image();
+    img.onload = ()=>{ state.bg.img=img; state.bg.ready=true; state.showBg = true; document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen'; };
+    img.onerror = ()=>{};
+    img.src = 'background.jpg';
+  })();
+  
+  const btnBg = document.getElementById('btnBg');
+  const bgFile = document.getElementById('bgFile');
+  btnBg.onclick = ()=> bgFile.click();
+  bgFile.onchange = (e)=>{ 
+    const f = e.target.files && e.target.files[0]; 
+    if(!f) return;
+    const url = URL.createObjectURL(f); 
+    const img = new Image();
+    img.onload = ()=>{ 
+      state.bg.img=img; 
+      state.bg.ready=true; 
+      state.showBg = true; 
+      document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen';
+      URL.revokeObjectURL(url); 
+    };
+    img.onerror = ()=> URL.revokeObjectURL(url);
+    img.src = url; 
+  };
+
+  function computeCover(){
+    const cw=cvs.width, ch=cvs.height;
+    const img = state.bg.img; if(!img) return {sx:0,sy:0,sw:1,sh:1,S:1};
+    const ir = img.width/img.height; const cr = cw/ch;
+    let sx=0, sy=0, sw=img.width, sh=img.height;
+    if(cr > ir){ const nh = img.width / cr; sy = (img.height - nh)/2; sh = nh; }
+    else { const nw = img.height * cr; sx = (img.width - nw)/2; sw = nw; }
+    const S = cw/sw;
+    state.bg.sx=sx; state.bg.sy=sy; state.bg.sw=sw; state.bg.sh=sh;
+    return {sx,sy,sw,sh,S};
+  }
+
+  function toCanvasFromImage(px,py){ const {sx,sy,sw,sh,S} = computeCover(); const x = (px - sx) * S; const y = (py - sy) * S; return [x,y,S]; }
+  function toCanvasRadiusFromImage(R){ const {S} = computeCover(); return R * S; }
+
+  function setPointer(e, t){ const r=cvs.getBoundingClientRect(); return [(t.clientX-r.left)*DPR, (t.clientY-r.top)*DPR]; }
+  cvs.addEventListener('pointerdown', e=>{ const [x,y] = setPointer(e,e); throwDart(x,y); });
+
+  function throwDart(tx,ty){ if(state.thrown>=3) return; whoosh();
+    const startX = cvs.width*0.5 + (Math.random()*80-40)*DPR;
+    const startY = cvs.height + 150*DPR;
+    const t0 = performance.now(); const dur = 420 + Math.random()*120;
+    const d = {startX,startY,tx,ty,t0,dur,done:false,stuck:false,sx:0,sy:0,ang:0,result:null};
+    state.darts.push(d); state.thrown++;
+    refreshHUD();
+  }
+
+  function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+  function drawDart(x,y,angle){ ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
+    ctx.fillStyle = '#dfe7ff'; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-18*DPR,-4*DPR); ctx.lineTo(-18*DPR,4*DPR); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#9bb3ff'; ctx.fillRect(-18*DPR,-2*DPR,-40*DPR,4*DPR);
+    ctx.fillStyle = '#5fa3ff'; ctx.beginPath(); ctx.moveTo(-58*DPR,-8*DPR); ctx.lineTo(-74*DPR,0); ctx.lineTo(-58*DPR,8*DPR); ctx.closePath(); ctx.fill();
+    ctx.restore(); }
+
+  const RAT = { bull: 6.35/170, outerBull: 15.9/170, tripleIn: 99/170, tripleOut: 107/170, doubleIn: 162/170, doubleOut: 1.0 };
+
+  function scoreAtCanvas(xc,yc){
+    const [cx,cy,S] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    const dx = xc - cx, dy = yc - cy;
+    const r = Math.hypot(dx,dy);
+    const dist = r / R;
+    let ring='miss', mult=0, label='Miss';
+    if(dist <= RAT.bull){ ring='bull'; mult=50; label='BULL (50)'; }
+    else if(dist <= RAT.outerBull){ ring='outer'; mult=25; label='Outer Bull (25)'; }
+    else if(dist > RAT.doubleOut){ ring='miss'; mult=0; label='Miss'; }
+    else if(dist >= RAT.doubleIn){ ring='double'; }
+    else if(dist >= RAT.tripleIn && dist <= RAT.tripleOut){ ring='triple'; }
+    else { ring='single'; }
+    let base=0, sector=0;
+    if(ring==='bull' || ring==='outer'){ /* base 0 */ }
+    else {
+      let ang = (Math.atan2(yc - cy, xc - cx) * 180/Math.PI);
+      ang = (ang + 90 + 360) % 360;
+      ang = (ang - cal.rot + 360) % 360;
+      const idx = Math.floor((ang + 9) / 18) % 20;
+      base = ORDER[idx]; sector=base;
+      if(ring==='double') { mult = base*2; label = `D${base} (${mult})`; }
+      else if(ring==='triple') { mult = base*3; label = `T${base} (${mult})`; }
+      else if(ring==='single') { mult = base; label = `${base}`; }
+    }
+    return {score:mult, ring, sector, base, label, cx, cy, R, dist, r};
+  }
+
+  const hud = document.getElementById('hud');
+  function refreshHUD(){
+    const lines = [];
+    let subtotal = 0;
+    state.darts.forEach((d,i)=>{ if(d.result){ subtotal+=d.result.score; lines.push(`Pijl ${i+1}: ${d.result.label}`); } else lines.push(`Pijl ${i+1}: ...`); });
+    lines.push('—');
+    lines.push(`Beurt ${state.turn} | Totaal: ${subtotal} | Nog: ${Math.max(0,3-state.thrown)}`);
+    if(state.thrown>=3) lines.push('(Nieuwe beurt om door te gaan)');
+    hud.innerHTML = lines.join('<br>');
+    return subtotal; 
+  }
+
+  function drawOverlay(){
+    if(!state.overlay) return;
+    const [cx,cy] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    
+    ctx.save();
+    
+    // 1. Teken ringen en lijnen
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = '#00ffe0'; ctx.lineWidth = 2;
+    const rings = [RAT.bull,RAT.outerBull,RAT.tripleIn,RAT.tripleOut,RAT.doubleIn,RAT.doubleOut];
+    rings.forEach(r=>{ ctx.beginPath(); ctx.arc(cx,cy,R*r,0,Math.PI*2); ctx.stroke(); });
+    
+    ctx.globalAlpha = 0.25;
+    for(let j=0;j<20;j++){ 
+        const a = (j*18 - 9 - cal.rot) * Math.PI/180; 
+        const x = cx + Math.cos(a)*R;
+        const y = cy + Math.sin(a)*R; 
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke(); 
+    }
+
+    // 2. Teken cijfers
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${18 * DPR}px sans-serif`; 
+    const R_num = R * 1.08; 
+    for(let i=0; i<20; i++){
+        const baseAngle = 90 - (i * 18);
+        const rotatedAngle = baseAngle - cal.rot;
+        const angleRad = rotatedAngle * Math.PI/180;
+        const x = cx + Math.cos(angleRad) * R_num;
+        const y = cy - Math.sin(angleRad) * R_num;
+        ctx.fillText(ORDER[i], x, y);
+    }
+    
+    ctx.restore();
+  }
+
+  function drawBackground(){
+    const cw=cvs.width, ch=cvs.height;
+    if(state.showBg && state.bg.ready && state.bg.img){
+      const img = state.bg.img; const ir = img.width/img.height; const cr = cw/ch;
+      let sx=0, sy=0, sw=img.width, sh=img.height;
+      if(cr > ir){ const nh = img.width / cr; sy = (img.height - nh)/2; sh = nh; }
+      else { const nw = img.height * cr; sx = (img.width - nw)/2; sw = nw; }
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+      state.bg.sx=sx; state.bg.sy=sy; state.bg.sw=sw; state.bg.sh=sh;
+      return;
+    }
+    ctx.fillStyle = '#222'; ctx.fillRect(0,0,cw,ch);
+  }
+
+  function updateAndDrawDarts(t){
+    for(const d of state.darts){
+      if(!d.stuck){
+        const k = Math.min(1, (t - d.t0)/d.dur);
+        const e = easeOutCubic(k);
+        const x = d.startX + (d.tx - d.startX)*e;
+        const y = d.startY + (d.ty - d.startY)*e;
+        d.sx = x; d.sy = y; d.ang = Math.atan2(d.ty - d.startY, d.tx - d.startX);
+        drawDart(x,y,d.ang);
+        if(k>=1 && !d.done){
+          d.done=true; d.stuck=true; thunk();
+          d.result = scoreAtCanvas(d.tx, d.ty);
+          const subtotal = refreshHUD();
+          if (state.thrown === 3 && subtotal === 180) {
+              hundoEighty();
+          }
+        }
+      } else { drawDart(d.sx, d.sy, d.ang); }
+    }
+  }
+
+  let last = performance.now();
+  function loop(t){
+    drawBackground();
+    drawOverlay();
+    updateAndDrawDarts(t);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  const ctrl = document.getElementById('ctrl');
+  const btnDebug = document.getElementById('btnDebug');
+  const btnHideCtrl = document.getElementById('btnHideCtrl'); 
+  
+  function toggleCtrlPanel(explicitHide = false) {
+    const isVisible = ctrl.style.display !== 'none';
+    if (explicitHide || isVisible) {
+      ctrl.style.display = 'none';
+      btnDebug.textContent = '⚙️ Kalibratie Paneel Tonen';
+    } else {
+      ctrl.style.display = 'block';
+      btnDebug.textContent = '⚙️ Kalibratie Paneel Verbergen';
+    }
+  }
+
+  btnDebug.onclick = () => toggleCtrlPanel();
+  btnHideCtrl.onclick = () => toggleCtrlPanel(true);
+
+  const btnToggleBg = document.getElementById('btnToggleBg');
+  btnToggleBg.onclick = ()=>{ 
+    if (state.bg.ready) {
+        state.showBg = !state.showBg; 
+        btnToggleBg.textContent = state.showBg ? '🖼️ Achtergrond Verbergen' : '🖼️ Achtergrond Tonen';
+    }
+  };
+
+  document.getElementById('btnNew').onclick = ()=>{ state.turn++; state.darts.length=0; state.thrown=0; refreshHUD(); };
+  document.getElementById('btnFull').onclick = ()=>{ const el=document.documentElement; if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen).call(el); } else { document.exitFullscreen && document.exitFullscreen(); }};
+  document.getElementById('btnMute').onclick = (e)=>{ audio.muted = !audio.muted; e.currentTarget.setAttribute('aria-pressed', String(audio.muted)); e.currentTarget.textContent = audio.muted? '🔇 Gedempt':'🔈 Geluid'; };
+  
+  // v0.9: Event listener voor de testknop
+  document.getElementById('btnTest180').onclick = hundoEighty;
+  
+  // v0.10: Nieuwe knop om audio af te spelen (doet hetzelfde als btnTest180)
+  document.getElementById('btnPlayEmbed').onclick = hundoEighty;
+
+  document.getElementById('btnOverlay').onclick = ()=>{ state.overlay = !state.overlay; };
+
+  // --- Kalibratie Knoppen en Hold Logica ---
+  const rotVal = document.getElementById('rotVal'), cxVal = document.getElementById('cxVal'), cyVal = document.getElementById('cyVal'), rVal = document.getElementById('rVal');
+  const saveCal = document.getElementById('saveCal'), resetCal = document.getElementById('resetCal');
+
+  function updateLabels(){
+    cal.rot = (cal.rot % 360 + 360) % 360; 
+    rotVal.textContent = `= ${cal.rot.toFixed(2)}°`;
+    cxVal.textContent = `= ${cal.cx.toFixed(1)} px`;
+    cyVal.textContent = `= ${cal.cy.toFixed(1)} px`;
+    rVal.textContent  = `= ${cal.R_do.toFixed(2)} px`;
+  }
+  updateLabels();
+
+  let intervalId = null;
+  const HOLD_DELAY = 80; 
+
+  function clearHold() { if (intervalId !== null) { clearInterval(intervalId); intervalId = null; } }
+
+  function setupHoldableButton(button, action) {
+    button.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); 
+      action();
+      intervalId = setInterval(() => { action(); }, HOLD_DELAY);
+    });
+    button.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+    button.addEventListener('pointerup', clearHold);
+    button.addEventListener('pointerleave', clearHold);
+    button.addEventListener('pointercancel', clearHold);
+  }
+
+  setupHoldableButton(document.getElementById('rotLargeM'), ()=>{ cal.rot -= 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotLargeP'), ()=>{ cal.rot += 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotM'),      ()=>{ cal.rot -= 0.5; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotP'),      ()=>{ cal.rot += 0.5; updateLabels(); }); // Typo gecorrigeerd van 5.0 naar 0.5
+  
+  setupHoldableButton(document.getElementById('cxLargeM'),  ()=>{ cal.cx -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxLargeP'),  ()=>{ cal.cx += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxM'),       ()=>{ cal.cx -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxP'),       ()=>{ cal.cx += 2; updateLabels(); });
+
+  setupHoldableButton(document.getElementById('cyLargeM'),  ()=>{ cal.cy -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyLargeP'),  ()=>{ cal.cy += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyM'),       ()=>{ cal.cy -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyP'),       ()=>{ cal.cy += 2; updateLabels(); });
+
+  setupHoldableButton(document.getElementById('rLargeM'),   ()=>{ cal.R_do *= 0.98; updateLabels(); });
+  setupHoldableButton(document.getElementById('rLargeP'),   ()=>{ cal.R_do *= 1.02; updateLabels(); });
+  setupHoldableButton(document.getElementById('rM'),        ()=>{ cal.R_do *= 0.998; updateLabels(); });
+  setupHoldableButton(document.getElementById('rP'),        ()=>{ cal.R_do *= 1.002; updateLabels(); });
+
+  saveCal.onclick = ()=>{ try{ localStorage.setItem(STORAGE, JSON.stringify(cal)); }catch{} };
+  resetCal.onclick = ()=>{ cal = {...defaultCal}; try{ localStorage.removeItem(STORAGE); }catch{}; updateLabels(); };
+
+  function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+
+  refreshHUD();
+})();
+</script>
+</body>
+</html>

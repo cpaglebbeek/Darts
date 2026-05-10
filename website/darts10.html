@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Darts Proto v0.19 (180 Video & Angle Variance)</title>
+  <style>
+    html, body { margin:0; height:100%; background:#0b0f14; color:#e7f0ff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; overflow:hidden; }
+    #wrap { position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr auto; }
+    header, footer { padding:8px 12px; background:#0f1620; border-bottom:1px solid #1c2633; z-index:10; }
+    footer { border-top:1px solid #1c2633; border-bottom:none; font-size:12px; opacity:.9; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    
+    button { 
+      appearance:none; border:none; padding:8px 10px; border-radius:10px; 
+      background:#1b2736; color:#e7f0ff; 
+      box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 1px 8px rgba(0,0,0,.25); 
+      cursor:pointer; 
+      user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    button:active { transform:translateY(1px); }
+    
+    #canvas { 
+      position:fixed; top:0; left:0; width:100vw; height:100vh; 
+      display:block; touch-action:none; background:#000;
+      cursor: none; 
+    }
+    
+    #hud { position:fixed; top:56px; right:12px; background:rgba(8,12,18,.6); padding:8px 10px; border-radius:10px; font:12px/1.35 monospace; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,.08); max-width:50ch; z-index:5; }
+    #ctrl { 
+      position:fixed; top:56px; left:12px; 
+      background:rgba(8,12,18,.6); padding:8px 10px; border-radius:10px; 
+      font:12px/1.35 monospace; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,.08); 
+      max-width:54ch; display: none; z-index:5;
+    }
+    #ctrl button { padding:4px 8px; border-radius:8px; }
+
+    .hint { opacity:.8; font-size:12px; margin-left:12px; }
+
+    /* AANGEPAST: v0.19 - Stijlen voor de video popup */
+    #videoPopup {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      /* Standaard verborgen */
+      display: none; 
+      z-index: 100;
+      /* Gebruik grid om video te centreren */
+      display: grid;
+      place-items: center;
+    }
+    #video180 {
+      width: 90vw;
+      max-width: 800px;
+      height: auto;
+      object-fit: contain;
+      border: 2px solid #fff;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <header>
+      <div class="row">
+        <div>🎯 <strong>Darts Proto</strong> <small id="ver">v0.19</small></div>
+        <div class="row">
+          <button id="btnFull">⛶ Volledig scherm</button>
+          <button id="btnNew">➕ Nieuwe beurt</button>
+          <button id="btnMute" aria-pressed="false">🔈 Geluid</button>
+          <button id="btnTest180">📣 Test 180</button>
+          <button id="btnPlayEmbed">▶️ Speel Audio</button>
+          <button id="btnBg">📷 Kies achtergrond</button>
+          <button id="btnToggleBg">🖼️ Achtergrond Tonen</button>
+          <button id="btnOverlay">🧭 Overlay</button>
+          <button id="btnDebug">⚙️ Kalibratie Paneel Tonen</button>
+        </div>
+      </div>
+    </header>
+    <input id="bgFile" type="file" accept="image/*" style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px;" />
+    
+    <canvas id="canvas" width="1280" height="720" aria-label="Dartboard canvas"></canvas>
+    
+    <div id="hud"></div>
+    <div id="ctrl">
+        <div class="row" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1);">
+            <strong>Kalibratie Paneel</strong> 
+            <button id="btnHideCtrl" style="margin-left: auto;">❌ Verbergen</button>
+        </div>
+        <div>Rotatie: <button id="rotLargeM">−5°</button> <button id="rotLargeP">+5°</button> <button id="rotM">−0.5°</button> <button id="rotP">+0.5°</button> <span id="rotVal"></span></div>
+        <div>Center X: <button id="cxLargeM">−20 px</button> <button id="cxLargeP">+20 px</button> <button id="cxM">−2 px</button> <button id="cxP">+2 px</button> <span id="cxVal"></span></div>
+        <div>Center Y: <button id="cyLargeM">−20 px</button> <button id="cyLargeP">+20 px</button> <button id="cyM">−2 px</button> <button id="cyP">+2 px</button> <span id="cyVal"></span></div>
+        <div>Radius: <button id="rLargeM">−2%</button> <button id="rLargeP">+2%</button> <button id="rM">−0.2%</button> <button id="rP">+0.2%</button> <span id="rVal"></span></div>
+        <div><button id="saveCal">💾 Bewaar</button> <small>(local)</small> <button id="resetCal">↺ Reset</button></div>
+    </div>
+    
+    <div id="videoPopup" style="display:none;">
+      <video id="video180" src="180_video1.mp4" playsinline></video>
+    </div>
+
+    <main></main>
+    
+    <footer>
+      <div class="hint">
+        <strong>Besturing:</strong> Houd linkermuisknop ingedrukt om te mikken, laat los om te gooien.
+      </div>
+    </footer>
+  </div>
+
+<script>
+(() => {
+  // AANGEPAST: Versie en features
+  // v0.19: 180-video popup toegevoegd. Willekeurige variatie aan 'stuck' dart hoek.
+  const VER = '0.19';
+  document.getElementById('ver').textContent = 'v'+VER;
+  
+  const MIN_HOLD_TIME_MS = 100; 
+
+  const cvs = document.getElementById('canvas');
+  const ctx = cvs.getContext('2d');
+  const DPR = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  
+  // AANGEPAST: v0.19 - DOM-elementen voor video popup
+  const videoPopup = document.getElementById('videoPopup');
+  const video180 = document.getElementById('video180');
+
+  function fit(){
+    const w = cvs.clientWidth = innerWidth;
+    const h = cvs.clientHeight = innerHeight;
+    cvs.width  = Math.floor(w * DPR);
+    cvs.height = Math.floor(h * DPR);
+  }
+  addEventListener('resize', fit, {passive:true}); fit();
+
+  const ORDER = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+  const STORAGE = 'darts-v05-cal';
+  const defaultCal = { cx:526.0, cy:500.0, R_do:408.0, rot:0.0 }; 
+  let cal = {...defaultCal};
+  try{ const s = JSON.parse(localStorage.getItem(STORAGE)||'null'); if(s) cal = s; }catch{}
+
+  const state = {
+    darts:[],     
+    flyingDarts:[], 
+    turn:1, thrown:0, total:0,
+    overlay:true,
+    showBg: false,
+    bg:{img:null, ready:false, dx:0, dy:0, dw:1, dh:1, S:1},
+    show180: 0,
+    t: 0, 
+    mouse: { x:0, y:0, holding: false, clickStartTime: 0 },
+    aim: { tx: 0, ty: 0 }, 
+  };
+
+  // --- Audio Logic ---
+  const audio = { ctx:null, muted:false, buffer180: null };
+  function ensureAudio(){ if(audio.ctx) return; const C = window.AudioContext||window.webkitAudioContext; if(!C) return; audio.ctx = new C(); }
+  function thunk(){ if(audio.muted) return; ensureAudio(); if(!audio.ctx) return; const t=audio.ctx.currentTime; const o=audio.ctx.createOscillator(); const g=audio.ctx.createGain(); o.type='triangle'; o.frequency.value=160; o.connect(g); g.connect(audio.ctx.destination); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.25, t+.005); g.gain.exponentialRampToValueAtTime(.0001, t+.12); o.start(t); o.stop(t+.18); }
+  function hundoEighty(){
+    if(audio.muted || !audio.buffer180) return; 
+    ensureAudio(); if(!audio.ctx) return; 
+    const source = audio.ctx.createBufferSource();
+    source.buffer = audio.buffer180;
+    source.connect(audio.ctx.destination);
+    source.start(0);
+  }
+  (async function load180Audio() {
+      try {
+          ensureAudio(); if (!audio.ctx) return;
+          const response = await fetch('Best Dart 180 Voice.mp3'); 
+          if (!response.ok) throw new Error(`Kon audiobestand niet laden: ${response.statusText}`);
+          const arrayBuffer = await response.arrayBuffer();
+          audio.buffer180 = await audio.ctx.decodeAudioData(arrayBuffer);
+      } catch (e) { console.error('Fout bij het laden van de 180 audio:', e); }
+  })();
+
+  // --- Background Image Logic ---
+  (function tryLoadBG(){
+    const img = new Image();
+    img.onload = ()=>{ state.bg.img=img; state.bg.ready=true; state.showBg = true; document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen'; };
+    img.onerror = ()=>{};
+    img.src = 'dartboard.jpg';
+  })();
+  const btnBg = document.getElementById('btnBg');
+  const bgFile = document.getElementById('bgFile');
+  btnBg.onclick = ()=> bgFile.click();
+  bgFile.onchange = (e)=>{ 
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const url = URL.createObjectURL(f); 
+    const img = new Image();
+    img.onload = ()=>{ state.bg.img=img; state.bg.ready=true; state.showBg = true; document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen'; URL.revokeObjectURL(url); };
+    img.onerror = ()=> URL.revokeObjectURL(url);
+    img.src = url; 
+  };
+
+  // --- Scaling & Scoring Logic ---
+  function computeContain(){
+    const cw=cvs.width, ch=cvs.height;
+    const img = state.bg.img; if(!img) return {dx:0,dy:0,dw:cw,dh:ch,S:1};
+    const ir = img.width/img.height; const cr = cw/ch;
+    let dw, dh, dx, dy;
+    if (cr > ir) { dh = ch; dw = ch * ir; dx = (cw - dw) / 2; dy = 0; }
+    else { dw = cw; dh = cw / ir; dx = 0; dy = (ch - dh) / 2; }
+    const S = dw / img.width; 
+    state.bg.dx=dx; state.bg.dy=dy; state.bg.dw=dw; state.bg.dh=dh; state.bg.S = S;
+    return {dx,dy,dw,dh,S};
+  }
+  function toCanvasFromImage(px,py){ 
+    const {dx,dy,S} = state.bg.S ? state.bg : computeContain(); 
+    const x = (px * S) + dx; const y = (py * S) + dy;
+    return [x,y,S]; 
+  }
+  function toCanvasRadiusFromImage(R){ 
+    const {S} = state.bg.S ? state.bg : computeContain();
+    return R * S; 
+  }
+  const RAT = { bull: 6.35/170, outerBull: 15.9/170, tripleIn: 99/170, tripleOut: 107/170, doubleIn: 162/170, doubleOut: 1.0 };
+  
+  function scoreAtCanvas(xc,yc){
+    const [cx,cy,S] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    const dx = xc - cx, dy = yc - cy;
+    const r = Math.hypot(dx,dy);
+    const dist = r / R;
+    let ring='miss', mult=0, label='Miss';
+    if(dist <= RAT.bull){ ring='bull'; mult=50; label='BULL (50)'; }
+    else if(dist <= RAT.outerBull){ ring='outer'; mult=25; label='Outer Bull (25)'; }
+    else if(dist > RAT.doubleOut){ ring='miss'; mult=0, label='Miss'; }
+    else if(dist >= RAT.doubleIn){ ring='double'; }
+    else if(dist >= RAT.tripleIn && dist <= RAT.tripleOut){ ring='triple'; }
+    else { ring='single'; }
+    let base=0, sector=0;
+    if(ring==='bull' || ring==='outer'){ /* base 0 */ }
+    else {
+      let ang = (Math.atan2(yc - cy, xc - cx) * 180/Math.PI);
+      ang = (ang + 90 + 360) % 360;
+      ang = (ang - cal.rot + 360) % 360;
+      const idx = Math.floor((ang + 9) / 18) % 20;
+      base = ORDER[idx]; sector=base;
+      if(ring==='double') { mult = base*2; label = `D${base} (${mult})`; }
+      else if(ring==='triple') { mult = base*3; label = `T${base} (${mult})`; }
+      else if(ring==='single') { mult = base; label = `${base}`; }
+    }
+    return {score:mult, ring, sector, base, label, cx, cy, R, dist, r};
+  }
+
+  // --- HUD Logic ---
+  const hud = document.getElementById('hud');
+  function refreshHUD(){
+    const lines = [];
+    let subtotal = 0;
+    state.darts.forEach((d,i)=>{ if(d.result){ subtotal+=d.result.score; lines.push(`Pijl ${i+1}: ${d.result.label}`); } else lines.push(`Pijl ${i+1}: ...`); });
+    lines.push('—');
+    lines.push(`Beurt ${state.turn} | Totaal: ${subtotal} | Nog: ${Math.max(0,3-state.thrown)}`);
+    if(state.thrown>=3) lines.push('(Nieuwe beurt om door te gaan)');
+    hud.innerHTML = lines.join('<br>');
+    return subtotal; 
+  }
+
+  // --- Input Handlers ---
+  function setPointer(t){ 
+    const r=cvs.getBoundingClientRect(); 
+    state.mouse.x = (t.clientX-r.left)*DPR;
+    state.mouse.y = (t.clientY-r.top)*DPR;
+  }
+
+  cvs.addEventListener('pointermove', e => {
+    setPointer(e);
+  });
+  
+  cvs.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (e.button !== 0) return; 
+    if (state.thrown >= 3) return;
+    state.mouse.holding = true;
+    state.mouse.clickStartTime = performance.now();
+  });
+  
+  cvs.addEventListener('pointerup', e => {
+    e.preventDefault();
+    if (e.button !== 0) return; 
+    if (!state.mouse.holding) return;
+
+    const clickDuration = performance.now() - state.mouse.clickStartTime;
+    state.mouse.holding = false; 
+
+    if (clickDuration < MIN_HOLD_TIME_MS) {
+        return; 
+    }
+    
+    throwDartAt(state.aim.tx, state.aim.ty);
+  });
+
+  // AANGEPAST: v0.19 - Video popup event handlers
+  videoPopup.onclick = () => {
+    video180.pause();
+    videoPopup.style.display = 'none';
+  };
+  video180.onended = () => {
+    videoPopup.style.display = 'none';
+  };
+  // Stop propagatie zodat klikken op de video de popup niet sluit
+  video180.onclick = (e) => e.stopPropagation();
+  
+  function throwDartAt(tx, ty) {
+    if (state.thrown >= 3) return;
+    state.thrown++;
+    refreshHUD(); 
+    const startX = cvs.width*0.5 + (Math.random()*80-40)*DPR;
+    const startY = cvs.height + 150*DPR;
+    const t0 = performance.now(); 
+    const dur = 400; 
+    // AANGEPAST: v0.19 - Sla de vlieghoek op in het 'd' object
+    const ang = Math.atan2(ty - startY, tx - startX);
+    const d = {startX, startY, tx, ty, t0, dur, done:false, ang: ang};
+    state.flyingDarts.push(d);
+  }
+
+  
+  // --- Draw Functies ---
+
+  function drawDart(x,y,angle){
+    ctx.save();
+    ctx.translate(x,y); 
+    ctx.rotate(angle);  
+    
+    const s = DPR * 1.2;
+    
+    ctx.translate(-40*s, 0); // Ankerpunt-fix (v0.18)
+    
+    ctx.lineWidth = 6*s; ctx.lineCap='round'; ctx.strokeStyle = '#0e7490';
+    ctx.beginPath(); ctx.moveTo(-70*s,0); ctx.lineTo(25*s,0); ctx.stroke();
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath(); ctx.moveTo(25*s,0); ctx.lineTo(40*s,-3*s); ctx.lineTo(40*s,3*s); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    const f = 18*s;
+    ctx.beginPath(); ctx.moveTo(-70*s,0); ctx.quadraticCurveTo(-86*s,-f,-70*s,-f*1.6); ctx.quadraticCurveTo(-52*s,-f*1.2,-52*s,0); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-70*s,0); ctx.quadraticCurveTo(-86*s, f,-70*s, f*1.6); ctx.quadraticCurveTo(-52*s, f*1.2,-52*s,0); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawAimCursor(t){
+    if (state.thrown >= 3) return; 
+
+    const x = state.mouse.x;
+    const y = state.mouse.y;
+    state.aim.tx = x;
+    state.aim.ty = y;
+
+    const holding = state.mouse.holding;
+    const color = holding ? '#FF0000' : '#00FF00';
+    const s = DPR;
+
+    ctx.save();
+    ctx.translate(x, y); 
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1 * s;
+    ctx.globalAlpha = 0.8;
+
+    ctx.beginPath();
+    ctx.moveTo(-15 * s, 0); ctx.lineTo(-3 * s, 0); 
+    ctx.moveTo( 15 * s, 0); ctx.lineTo( 3 * s, 0); 
+    ctx.moveTo(0, -15 * s); ctx.lineTo(0, -3 * s); 
+    ctx.moveTo(0,  15 * s); ctx.lineTo(0,  3 * s); 
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.arc(0, 0, 10 * s, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillRect(-0.5 * s, -0.5 * s, 1 * s, 1 * s); 
+    
+    ctx.restore();
+  }
+  
+  function drawOverlay(){
+    if(!state.overlay) return;
+    const [cx,cy] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    ctx.save();
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#00ffe0'; ctx.lineWidth = 2 * DPR;
+    const rings = [RAT.bull,RAT.outerBull,RAT.tripleIn,RAT.tripleOut,RAT.doubleIn,RAT.doubleOut];
+    rings.forEach(r=>{ ctx.beginPath(); ctx.arc(cx,cy,R*r,0,Math.PI*2); ctx.stroke(); });
+    ctx.globalAlpha = 0.25;
+    for(let j=0;j<20;j++){ const a = (j*18 - 9 - cal.rot) * Math.PI/180; const x = cx + Math.cos(a)*R; const y = cy + Math.sin(a)*R; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke(); }
+    ctx.globalAlpha = 1.0; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `${18 * DPR}px sans-serif`; 
+    const R_num = R * 1.08; 
+    for(let i=0; i<20; i++){ const baseAngle = 90 - (i * 18); const rotatedAngle = baseAngle - cal.rot; const angleRad = rotatedAngle * Math.PI/180; const x = cx + Math.cos(angleRad) * R_num; const y = cy - Math.sin(angleRad) * R_num; ctx.fillText(ORDER[i], x, y); }
+    ctx.restore();
+  }
+  
+  function drawBackground(){
+    const cw=cvs.width, ch=cvs.height;
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
+    if(state.showBg && state.bg.ready && state.bg.img){
+      const img = state.bg.img;
+      const {dx,dy,dw,dh} = computeContain(); 
+      ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
+    } else {
+      ctx.fillStyle = '#222'; ctx.fillRect(0,0,cw,ch);
+    }
+  }
+  
+  function draw180Banner(t){
+    if (!state.show180) return;
+    const elapsed = t - state.show180;
+    if (elapsed > 3000) { state.show180 = 0; return; }
+    let alpha = 1.0;
+    if (elapsed < 300) alpha = elapsed / 300;
+    else if (elapsed > 2500) alpha = (3000 - elapsed) / 500;
+    const cw = cvs.width, ch = cvs.height;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.85; ctx.fillStyle = '#111'; ctx.fillRect(0, ch * 0.35, cw, ch * 0.3);
+    ctx.globalAlpha = alpha; ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fontSize = Math.min(cw, ch) * 0.2; 
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 20 * DPR;
+    ctx.fillText('180!!', cw / 2, ch / 2);
+    ctx.restore();
+  }
+  
+  function drawStuckDarts() {
+    for (const d of state.darts) {
+      drawDart(d.sx, d.sy, d.ang);
+    }
+  }
+  
+  function updateAndDrawFlyingDarts(t) {
+    const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+    
+    for (let i = state.flyingDarts.length - 1; i >= 0; i--) {
+        const d = state.flyingDarts[i];
+        
+        const k = Math.min(1, (t - d.t0) / d.dur);
+        const e = easeOutCubic(k);
+        const x = d.startX + (d.tx - d.startX) * e;
+        const y = d.startY + (d.ty - d.startY) * e;
+        
+        drawDart(x, y, d.ang);
+        
+        if (k >= 1 && !d.done) {
+            d.done = true;
+            thunk();
+            const result = scoreAtCanvas(d.tx, d.ty); 
+            
+            // AANGEPAST: v0.19 - Voeg willekeurige variatie toe aan de *eind*hoek
+            const wobble = (Math.random() - 0.5) * 0.2; // +/- ~5.7 graden
+            const finalAngle = d.ang + wobble;
+            
+            state.darts.push({ sx: d.tx, sy: d.ty, ang: finalAngle, result: result });
+            state.flyingDarts.splice(i, 1);
+            
+            const subtotal = refreshHUD();
+            if (state.thrown === 3 && subtotal === 180) {
+                hundoEighty(); // Speelt audio
+                state.show180 = performance.now(); // Toont banner
+
+                // AANGEPAST: v0.19 - Speel de video af
+                videoPopup.style.display = 'grid';
+                video180.currentTime = 0;
+                // .play() geeft een Promise terug, we vangen errors op (bijv. autoplay geblokkeerd)
+                video180.play().catch(e => console.warn("Video autoplay mislukt:", e));
+            }
+        }
+    }
+  }
+
+  // --- Hoofd Game Loop ---
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min(0.033, (now-last)/1000); 
+    last = now;
+    state.t += dt;
+
+    drawBackground();
+    drawOverlay();
+    drawStuckDarts();
+    updateAndDrawFlyingDarts(now);
+    draw180Banner(now);
+    drawAimCursor(state.t);
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+
+  // --- UI Knoppen & Logica ---
+  const ctrl = document.getElementById('ctrl');
+  const btnDebug = document.getElementById('btnDebug');
+  const btnHideCtrl = document.getElementById('btnHideCtrl'); 
+  function toggleCtrlPanel(explicitHide = false) {
+    const isVisible = ctrl.style.display !== 'none';
+    if (explicitHide || isVisible) { ctrl.style.display = 'none'; btnDebug.textContent = '⚙️ Kalibratie Paneel Tonen'; }
+    else { ctrl.style.display = 'block'; btnDebug.textContent = '⚙️ Kalibratie Paneel Verbergen'; }
+  }
+  btnDebug.onclick = () => toggleCtrlPanel();
+  btnHideCtrl.onclick = () => toggleCtrlPanel(true);
+
+  const btnToggleBg = document.getElementById('btnToggleBg');
+  btnToggleBg.onclick = ()=>{ if (state.bg.ready) { state.showBg = !state.showBg; btnToggleBg.textContent = state.showBg ? '🖼️ Achtergrond Verbergen' : '🖼️ Achtergrond Tonen'; } };
+
+  document.getElementById('btnNew').onclick = ()=>{ 
+    state.turn++; 
+    state.darts.length=0; 
+    state.flyingDarts.length=0;
+    state.thrown=0; 
+    state.show180 = 0; 
+    refreshHUD(); 
+    state.mouse.holding = false;
+  };
+  
+  document.getElementById('btnFull').onclick = ()=>{ const el=document.documentElement; if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen).call(el); } else { document.exitFullscreen && document.exitFullscreen(); }};
+  document.getElementById('btnMute').onclick = (e)=>{ audio.muted = !audio.muted; e.currentTarget.setAttribute('aria-pressed', String(audio.muted)); e.currentTarget.textContent = audio.muted? '🔇 Gedempt':'🔈 Geluid'; };
+  document.getElementById('btnTest180').onclick = hundoEighty;
+  document.getElementById('btnPlayEmbed').onclick = hundoEighty;
+  document.getElementById('btnOverlay').onclick = ()=>{ state.overlay = !state.overlay; };
+
+  // --- Kalibratie Knoppen ---
+  const rotVal = document.getElementById('rotVal'), cxVal = document.getElementById('cxVal'), cyVal = document.getElementById('cyVal'), rVal = document.getElementById('rVal');
+  const saveCal = document.getElementById('saveCal'), resetCal = document.getElementById('resetCal');
+  function updateLabels(){
+    cal.rot = (cal.rot % 360 + 360) % 360; 
+    rotVal.textContent = `= ${cal.rot.toFixed(2)}°`;
+    cxVal.textContent = `= ${cal.cx.toFixed(1)} px`;
+    cyVal.textContent = `= ${cal.cy.toFixed(1)} px`;
+    rVal.textContent  = `= ${cal.R_do.toFixed(2)} px`;
+  }
+  updateLabels();
+  let intervalId = null; const HOLD_DELAY = 80; 
+  function clearHold() { if (intervalId !== null) { clearInterval(intervalId); intervalId = null; } }
+  function setupHoldableButton(button, action) {
+    button.addEventListener('pointerdown', (e) => { e.preventDefault(); action(); intervalId = setInterval(() => { action(); }, HOLD_DELAY); });
+    button.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+    button.addEventListener('pointerup', clearHold); button.addEventListener('pointerleave', clearHold); button.addEventListener('pointercancel', clearHold);
+  }
+  setupHoldableButton(document.getElementById('rotLargeM'), ()=>{ cal.rot -= 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotLargeP'), ()=>{ cal.rot += 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotM'),      ()=>{ cal.rot -= 0.5; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotP'),      ()=>{ cal.rot += 0.5; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxLargeM'),  ()=>{ cal.cx -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxLargeP'),  ()=>{ cal.cx += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxM'),       ()=>{ cal.cx -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxP'),       ()=>{ cal.cx += 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyLargeM'),  ()=>{ cal.cy -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyLargeP'),  ()=>{ cal.cy += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyM'),       ()=>{ cal.cy -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyP'),       ()=>{ cal.cy += 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('rLargeM'),   ()=>{ cal.R_do *= 0.98; updateLabels(); });
+  setupHoldableButton(document.getElementById('rLargeP'),   ()=>{ cal.R_do *= 1.02; updateLabels(); });
+  setupHoldableButton(document.getElementById('rM'),        ()=>{ cal.R_do *= 0.998; updateLabels(); });
+  setupHoldableButton(document.getElementById('rP'),        ()=>{ cal.R_do *= 1.002; updateLabels(); });
+  saveCal.onclick = ()=>{ try{ localStorage.setItem(STORAGE, JSON.stringify(cal)); }catch{} };
+  resetCal.onclick = ()=>{ cal = {...defaultCal}; try{ localStorage.removeItem(STORAGE); }catch{}; updateLabels(); };
+
+  // --- Init ---
+  refreshHUD();
+})();
+</script>
+</body>
+</html>

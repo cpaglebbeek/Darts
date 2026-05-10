@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Darts Game v0.1b</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <audio id="musicPlayer" loop></audio>
+
+  <div id="wrap">
+    <header> 
+      <div class="row">
+        <div>🎯 <strong>Darts Game</strong> <small id="ver"></small></div>
+        <div class="row">
+          <button id="btnFull">⛶ Volledig scherm</button>
+          <button id="btnUndo" disabled>↩️ Ongedaan</button>
+          <button id="btnEndGame">❌ Stop Spel</button>
+          <button id="btnMute" aria-pressed="false">🔈 Geluid</button>
+          <button id="btnToggleTouch">👆 Touch UIT</button>
+          <button id="btnBg">📷 Kies achtergrond</button>
+          <button id="btnToggleBg">🖼️ Achtergrond Verbergen</button>
+          <button id="btnOverlay">🧭 Overlay Tonen</button>
+          <button id="btnDebug">⚙️ Kalibratie Paneel Tonen</button>
+        </div>
+      </div>
+    </header>
+    
+    <main> 
+      <canvas id="canvas" width="1280" height="720" aria-label="Dartboard canvas"></canvas>
+      <div id="ctrl">
+          <div class="row" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1);">
+              <strong>Kalibratie Paneel</strong> 
+              <button id="btnHideCtrl" style="margin-left: auto;">❌ Verbergen</button>
+          </div>
+          <div>Rotatie: <button id="rotLargeM">−5°</button> <button id="rotLargeP">+5°</button> <button id="rotM">−0.5°</button> <button id="rotP">+0.5°</button> <span id="rotVal"></span></div>
+          <div>Center X: <button id="cxLargeM">−20 px</button> <button id="cxLargeP">+20 px</button> <button id="cxM">−2 px</button> <button id="cxP">+2 px</button> <span id="cxVal"></span></div>
+          <div>Center Y: <button id="cyLargeM">−20 px</button> <button id="cyLargeP">+20 px</button> <button id="cyM">−2 px</button> <button id="cyP">+2 px</button> <span id="cyVal"></span></div>
+          <div>Radius: <button id="rLargeM">−2%</button> <button id="rLargeP">+2%</button> <button id="rM">−0.2%</button> <button id="rP">+0.2%</button> <span id="rVal"></span></div>
+          <div><button id="saveCal">💾 Bewaar</button> <small>(local)</small> <button id="resetCal">↺ Reset</button></div>
+      </div>
+    </main>
+    
+    <div id="scoreboard"></div>
+    
+    <footer> 
+      <div class="hint">
+        Besturing: Houd linkermuisknop ingedrukt om te mikken, laat los om te gooien.
+      </div>
+    </footer>
+  </div>
+
+  <div id="videoPopup" style="display:none;">
+    <video id="video180" playsinline></video>
+  </div>
+  <div id="nearMissPopup" style="display:none;">
+    <video id="videoNearMiss" playsinline></video>
+  </div>
+  <div id="topsPopup" style="display:none;">
+    <video id="videoTops" playsinline></video>
+  </div>
+  <div id="triplePopup" style="display:none;">
+    <video id="videoTriple" playsinline></video>
+  </div>
+
+  <div id="winPopup" class="popup-overlay" style="display:none;">
+    <div class="popup-card">
+      <h1>🏆 GEWONNEN! 🏆</h1>
+      <h2 id="winnerName"></h2>
+      <button id="btnNewGamePopup" class="popup-button-primary">Nieuw Spel</button>
+    </div>
+  </div>
+  
+  <div id="turnPopup" class="popup-overlay" style="display:none;">
+    <div class="popup-card">
+      <h1 id="turn-popup-title">Beurt Voorbij</h1>
+      <div id="turn-summary">
+        </div>
+      <div class="button-row">
+          <button id="btnPopupEndGame" class="popup-button-secondary">❌ Stop Spel</button>
+          <button id="btnPopupNextTurn" class="popup-button-primary">Volgende Beurt ➡️</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="spel.js"></script>
+</body>
+</html>

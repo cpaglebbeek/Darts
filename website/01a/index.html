@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Darts Setup v0.1a</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="gameSetup">
+    <div>
+      <h1>Darts Proto</h1>
+      <h3>Kies Speltype</h3>
+      <div class="options" id="gameTypeOptions">
+        <button data-value="301">301</button>
+        <button data-value="501" class="selected">501</button>
+        <button data-value="Rotatie 301">Rotatie 301</button>
+        <button data-value="Rotatie 501">Rotatie 501</button>
+        <button data-value="Oefenen 301">Oefenen (301)</button>
+        <button data-value="Oefenen 501">Oefenen (501)</button>
+      </div>
+      <h3>Kies Aantal Spelers</h3>
+      <div class="options" id="playerCountOptions">
+        <button data-value="1" class="selected">1 Speler</button>
+        <button data-value="2">2 Spelers</button>
+        <button data-value="3">3 Spelers</button>
+        <button data-value="4">4 Spelers</button>
+      </div>
+      
+      <h3>Namen (optioneel)</h3>
+      <div id="playerNameInputs">
+        </div>
+      
+      <button id="btnStartGame">Start Spel</button>
+    </div>
+  </div>
+
+  <script src="setup.js"></script>
+</body>
+</html>

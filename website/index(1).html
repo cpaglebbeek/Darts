@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyse & Handleiding - Darts Prototype v1.19d</title>
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JOUWTRACKINGID"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-JOUWTRACKINGID');
+    </script>
+
+    <script type(text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "jouwclarityid");
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const visitorData = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                cookieEnabled: navigator.cookieEnabled,
+                localTime: new Date().toString(),
+                timezoneOffset: new Date().getTimezoneOffset()
+            };
+
+            // Log data naar de console (alleen voor jou zichtbaar)
+            console.log("Verzamelde bezoekersdata:", visitorData);
+
+            // Om dit ECHT te verzamelen, moet je het naar een server sturen,
+            // bijvoorbeeld met fetch() naar een eigen data-endpoint:
+            /*
+            fetch('https://jouw-server.nl/data-ontvanger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(visitorData)
+            });
+            */
+        });
+    </script>
+    
+    <style>
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial;
+            background-color: #0b0f14;
+            color: #e7f0ff;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #0f1620;
+            border: 1px solid #1c2633;
+            border-radius: 12px;
+        }
+        .link-container {
+            text-align: center;
+            padding: 25px;
+            background-color: #1b2736;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        .link-container.footer {
+            margin-top: 25px;
+            margin-bottom: 0;
+        }
+        .play-link {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3b82f6;
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 2px solid #3b82f6;
+            border-radius: 10px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .play-link:hover {
+            background-color: #3b82f6;
+            color: #ffffff;
+            box-shadow: 0 0 15px #3b82f6;
+        }
+        h1, h2 {
+            color: #f59e0b;
+            border-bottom: 2px solid #2a3340;
+            padding-bottom: 10px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+        }
+        h2 {
+            font-size: 2em;
+            margin-top: 40px;
+        }
+        code {
+            background-color: #1a1e26;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        ul, ol {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        
+        /* Stijlen voor de privacy banner placeholder */
+        #privacy-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1b2736;
+            border-top: 2px solid #f59e0b;
+            padding: 20px;
+            text-align: center;
+            z-index: 1000;
+        }
+        #privacy-banner p {
+            margin: 0 0 15px 0;
+        }
+        #privacy-banner button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header class="link-container">
+            <a href="https://icthorse.nl/Darts/darts67.html" target="_blank" class="play-link">
+                 speel HIER het Darts Prototype 
+            </a>
+        </header>
+
+        <main>
+            <h1>Analyse & Handleiding: Darts Proto v1.19d</h1>
+
+            <section id="analyse">
+                <h2>🎯 Analyse van het Spel</h2>
+                <p>Op basis van het bestand <code>darts67.html</code> is dit een geavanceerd prototype van een dartspel dat volledig in een webbrowser draait (via HTML, CSS en JavaScript).</p>
+                <p>Het is meer dan een simpele "point-and-click"-game; het simuleert de <em>fysieke en mentale</em> aspecten van darten.</p>
+
+                <h3>Kerfunctionaliteit:</h3>
+                <ul>
+                    <li><strong>Spel-Setup:</strong> Voordat het spel begint, kan de speler kiezen uit verschillende speltypes (zoals 301, 501), spelmodi (standaard, 'Rotatie', of 'Oefenen'), en het aantal spelers (1-4). Spelers kunnen ook hun naam invoeren.</li>
+                    <li><strong>Mik-Mechanisme (De 'Wobble'):</strong> Dit is de kern van het prototype. Als een speler de muisknop ingedrukt houdt om te mikken, is de cursor (de 'scope') niet stabiel. Het "wiebelt". Hoe langer de speler de muis stilhoudt op één plek, hoe stabieler de cursor wordt (de 'wobble' neemt af). Dit simuleert de concentratie die nodig is om de hand stil te houden.</li>
+                    <li><strong>Werpen:</strong> De speler gooit de pijl door de muisknop los te laten. De worp wordt alleen geregistreerd als de knop een minimale tijd is ingedrukt (om per ongeluk klikken te voorkomen).</li>
+                    <li><strong>Scoreberekening:</strong> Na de worp berekent het script (via de <code>scoreAtCanvas</code>-functie) exact waar de pijl het bord <em>virtueel</em> heeft geraakt. Het gebruikt hiervoor de geometrische verhoudingen (<code>RAT</code>) van een officieel dartbord (bull, triple, double, etc.).</li>
+                    <li><strong>Spelverloop:</strong> Het spel volgt de officiële dartregels:
+                        <ul>
+                            <li>Het houdt de scores bij voor alle spelers.</li>
+                            <li>Het berekent "Busts" (als een speler onder de 1 gooit, of op 1 eindigt).</li>
+                            <li>Het detecteert een "Game Shot" (winnen op een double of bull).</li>
+                            <li>Het toont mogelijke 'Checkout'-routes (finishes) voor scores onder de 171.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Media & Beloningen:</strong> Het spel verhoogt de sfeer door het afspelen van video's en geluiden bij speciale gebeurtenissen, zoals het gooien van 180, een 'near miss' (net naast een triple/double), of het raken van 'Tops' (D20).</li>
+                    <li><strong>Kalibratie (Geavanceerd):</strong> Er is een verborgen 'Debug'-paneel (<code>#ctrl</code>). Hiermee kan de <em>gehele</em> virtuele geometrie van het dartbord (middenpunt, radius, rotatie) worden aangepast en opgeslagen. Dit is essentieel om het virtuele bord perfect uit te lijnen met een eventuele achtergrondafbeelding.</li>
+                    <li><strong>Scorekeeper Modus:</strong> De 'Oefenen'-modus schakelt het gooien uit en laat de speler handmatig scores invoeren, als een digitaal scorebord.</li>
+                </ul>
+            </section>
+
+            <section id="handleiding">
+                <h2>📖 Handleiding: Zo speel je het Darts Prototype</h2>
+                <p>Welkom bij het Darts Proto! Dit spel test niet alleen je mikpunt, maar ook je geduld.</p>
+
+                <h3>1. Spel Starten</h3>
+                <ol>
+                    <li><strong>Kies Speltype:</strong> Selecteer 301, 501, of een van de andere varianten.</li>
+                    <li><strong>Kies Spelers:</strong> Speel alleen (1 Speler) of tegen vrienden.</li>
+                    <li><strong>Namen (Optioneel):</strong> Voer de namen van de spelers in.</li>
+                    <li><strong>Start Spel:</strong> Klik op de groene "Start Spel" knop.</li>
+                </ol>
+
+                <h3>2. Darten (Gooien & Mikken)</h3>
+                <p>Dit is het belangrijkste onderdeel. Het spel heeft een "wobble"-mechanisme om een vaste hand te simuleren.</p>
+                <ol>
+                    <li><strong>Houd ingedrukt:</strong> Houd de <strong>linkermuisknop ingedrukt</strong> om te beginnen met mikken.</li>
+                    <li><strong>Concentreer:</strong> Je zult zien dat de cursor (het vizier) wiebelt.</li>
+                    <li><strong>Stabiliseer:</strong> Houd je muis zo stil mogelijk. Hoe langer je de muis stilhoudt op je doel, hoe kleiner het gewiebel wordt en hoe groener de cursor kleurt.</li>
+                    <li><strong>Loslaten:</strong> <strong>Laat de muisknop los</strong> om de pijl te gooien.</li>
+                </ol>
+                <p><strong>Let op:</strong> Snel klikken en loslaten werkt niet. Je moet de knop minimaal 100 milliseconden ingedrukt houden.</p>
+
+                <h3>3. Knoppen & Interface</h3>
+                <p>Tijdens het spelen zie je bovenin een menu:</p>
+                <ul>
+                    <li><strong>↩️ Ongedaan:</strong> Een foute worp gegooid? Klik hierop om je <em>laatste</em> pijl ongedaan te maken (dit kan alleen tijdens je beurt).</li>
+                    <li><strong>❌ Stop Spel:</strong> Beëindigt het huidige spel en keert terug naar het startscherm.</li>
+                    <li><strong>🔈 Geluid:</strong> Zet geluidseffecten en muziek aan of uit.</li>
+                    <li><strong>🧭 Overlay Tonen:</strong> Toont (of verbergt) de blauwe hulplijnen van het virtuele bord. Dit is handig als je de kalibratie wilt controleren.</li>
+                    <li><strong>⚙️ Kalibratie Paneel:</strong> Opent een menu voor experts om de positie van het virtuele bord aan te passen (voor normaal spelen niet nodig).</li>
+                </ul>
+
+                <h3>4. Spelverloop</h3>
+                <ul>
+                    <li>Je gooit 3 pijlen per beurt.</li>
+                    <li>Het <strong>Scoreboard</strong> (rechts) houdt alles bij: je huidige score, de score van je beurt, en hoeveel pijlen je nog hebt.</li>
+                    <li>Als je score onder de 171 komt, toont het scoreboard een <strong>mogelijke finish-route</strong> (bijv. "T20-T20-D20").</li>
+                    <li>Win het spel door precies op 0 te eindigen, waarbij je laatste pijl een Double of de Bull's Eye is.</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer class="link-container footer">
+            <a href="https://icthorse.nl/Darts/darts67.html" target="_blank" class="play-link">
+                speel HIER het Darts Prototype 
+            </a>
+        </footer>
+    </div>
+
+    <div id="privacy-banner">
+        <p>Deze website gebruikt cookies en tracking-scripts om data te verzamelen voor analyse en verbetering. 
+           <a href="/privacybeleid" target="_blank" style="color: #f59e0b;">Lees hier ons privacybeleid</a>.
+        </p>
+        <button id="accept-cookies">Accepteer</button>
+        <button id="decline-cookies">Weiger</button>
+    </div>
+
+    <script>
+        // Simpel voorbeeld om de banner te verbergen. 
+        // In een echte implementatie moet je 'accept' opslaan en 
+        // de scripts pas laden NA acceptatie.
+        document.getElementById('accept-cookies').onclick = () => {
+            document.getElementById('privacy-banner').style.display = 'none';
+            // TODO: Laad hier de tracking scripts of geef signaal af
+        };
+        document.getElementById('decline-cookies').onclick = () => {
+            document.getElementById('privacy-banner').style.display = 'none';
+        };
+    </script>
+
+</body>
+</html>

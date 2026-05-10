@@ -1,0 +1,1278 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Darts Game v1.13c (UI & Crash Fix)</title>
+  <meta name="author" content="Christian Glebbeek, iCt Hrose">
+  <meta name="copyright" content="Copyright Christian Glebbeek, iCt Hrose 2025. Alle rechten voorbehouden.">
+  <style>
+    /* ... (CSS is identiek aan v1.12c) ... */
+    html, body { margin:0; height:100%; background:#0b0f14; color:#e7f0ff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; overflow:hidden; }
+    #wrap { position:fixed; inset:0; display:grid; grid-template-rows:auto auto 1fr auto; display:none; }
+    header { padding:8px 12px; background:#0f1620; border-bottom:1px solid #1c2633; z-index:11; transition: transform 0.3s ease-in-out; }
+    header.hidden-by-mouse { transform: translateY(-110%); }
+    footer { padding:8px 12px; background:#0f1620; border-top:1px solid #1c2633; z-index:10; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    button { appearance:none; border:none; padding:8px 10px; border-radius:10px; background:#1b2736; color:#e7f0ff; box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 1px 8px rgba(0,0,0,.25); cursor:pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    button:active { transform:translateY(1px); }
+    .popup-button-primary { background: #10b981; padding: 14px 20px; font-size: 1.2em; }
+    .popup-button-secondary { background: #7f1d1d; padding: 14px 20px; font-size: 1.2em; color: #fecaca; }
+    #btnEndGame { background: #7f1d1d; color: #fecaca; }
+    #btnUndo { background: #9a3412; color: #fdba74; }
+    main { position: relative; grid-row: 3 / 4; }
+    #canvas { position:absolute; top:0; left:0; width:100%; height:100%; display:block; touch-action:none; background:#000; cursor: none; z-index: 1; }
+    #scoreboard { position: relative; z-index: 10; display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 10px; background: #0f1620; border-bottom: 1px solid #1c2633; box-sizing: border-box; transition: transform 0.3s ease-in-out; }
+    #scoreboard.hidden-by-mouse { transform: translateY(-110%); }
+    #scoreboard .player-section { background: #0d1016; padding: 10px 15px; margin-bottom: 0; border-radius: 8px; border: 1px solid #2a3340; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); position: relative; flex-basis: 220px; flex-grow: 1; }
+    #scoreboard .player-name { color: #e7f0ff; font-size: 1.1em; margin-bottom: 5px; font-family: system-ui; }
+    #scoreboard .nixie-score, #scoreboard .nixie-turn-score, #scoreboard .nixie-darts-remaining, #scoreboard .checkout-guide { font-family: 'DSEG7 Classic', monospace; font-size: 2.2em; color: #ff9900; text-shadow: 0 0 2px #ff9900, 0 0 10px #ff9900, 0 0 20px rgba(255,153,0,0.5); letter-spacing: 0.05em; background: #1a1e26; padding: 5px 8px; border-radius: 4px; display: inline-block; min-width: 60px; text-align: right; position: relative; overflow: hidden; }
+    #scoreboard .nixie-score::before, #scoreboard .nixie-turn-score::before, #scoreboard .nixie-darts-remaining::before, #scoreboard .checkout-guide::before { content: attr(data-value); position: absolute; top: 0; left: 0; right: 0; bottom: 0; color: rgba(255,153,0,0.1); text-shadow: none; z-index: 1; opacity: 0.5; }
+    #scoreboard .nixie-score span, #scoreboard .nixie-turn-score span, #scoreboard .nixie-darts-remaining span, #scoreboard .checkout-guide span { position: relative; z-index: 2; }
+    #scoreboard .turn-details { margin-top: 8px; font-size: 0.9em; color: #aebacd; font-family: system-ui; }
+    #scoreboard .turn-details .turn-score-label, #scoreboard .turn-details .darts-remaining-label { font-size: 0.8em; opacity: 0.7; }
+    #scoreboard .message { margin-top: 15px; color: #ff0000; font-weight: bold; text-shadow: 0 0 5px #ff0000; font-family: system-ui; }
+    #scoreboard .checkout-guide { font-size: 1.6em; min-width: 160px; text-align: center; margin-top: 5px; }
+    #scoreboard .checkout-label { font-family: system-ui; font-size: 0.8em; opacity: 0.7; display: block; margin-top: 10px; text-align: center; }
+    #scoreboard .manual-entry { display: flex; gap: 8px; margin-top: 10px; }
+    #scoreboard .manual-entry input { width: 80px; background: #1a1e26; border: 1px solid #2a3340; color: #ff9900; font-family: 'DSEG7 Classic', monospace; font-size: 1.5em; text-align: right; padding: 5px; border-radius: 4px; }
+    #scoreboard .manual-entry input::-webkit-outer-spin-button, #scoreboard .manual-entry input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #scoreboard .manual-entry input[type=number] { -moz-appearance: textfield; }
+    #scoreboard .manual-entry button { flex: 1; font-size: 1em; padding: 5px 10px; }
+    @font-face { font-family: 'DSEG7 Classic'; src: url('DSEG7Classic-Regular.woff') format('woff'); font-weight: normal; font-style: normal; }
+    #ctrl { position:fixed; top:56px; left:12px; background:rgba(8,12,18,.6); padding:8px 10px; border-radius:10px; font:12px/1.35 monospace; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,.08); max-width:54ch; display: none; z-index:5; }
+    #ctrl button { padding:4px 8px; border-radius:8px; }
+    .hint { opacity:.8; font-size:12px; margin-left:12px; }
+    #videoPopup, #nearMissPopup, #topsPopup, #triplePopup { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; z-index: 100; display: grid; place-items: center; }
+    #video180, #videoNearMiss, #videoTops, #videoTriple { width: 90vw; max-width: 800px; height: auto; object-fit: contain; border: 2px solid #fff; border-radius: 8px; }
+    .popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; z-index: 300; display: grid; place-items: center; text-align: center; backdrop-filter: blur(5px); }
+    .popup-card { background: #1b2736; padding: 40px 60px; border-radius: 12px; border: 2px solid #3b82f6; box-shadow: 0 0 30px #3b82f6; }
+    .popup-card h1 { font-size: 2.5em; margin: 0 0 20px 0; }
+    .popup-card .button-row { display: flex; gap: 15px; justify-content: center; }
+    #winPopup .popup-card { border-color: #f59e0b; box-shadow: 0 0 30px #f59e0b; }
+    #winPopup h1 { font-size: 3em; color: #f59e0b; }
+    #winPopup h2 { font-size: 1.5em; margin: 10px 0 30px 0; }
+    #gameSetup { position: fixed; inset: 0; background: #0b0f14; z-index: 200; display: grid; place-items: center; text-align: center; font-size: 1.2em; }
+    #gameSetup h1 { font-weight: 300; }
+    #gameSetup .options { display: flex; gap: 10px; margin: 15px 0; flex-wrap:wrap; justify-content:center; }
+    #gameSetup .options button { padding: 12px 16px; font-size: 1.1em; background: #1b2736; opacity: 0.7; }
+    #gameSetup .options button.selected { background: #3b82f6; opacity: 1.0; box-shadow: 0 0 10px #3b82f6; }
+    #gameSetup .input-group { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0; }
+    #gameSetup .input-group label { opacity: 0.8; font-size: 0.9em; min-width: 80px; text-align: right; }
+    #gameSetup .input-group input { background: #1b2736; border: 1px solid #2a3340; color: #e7f0ff; padding: 8px 10px; border-radius: 6px; font-size: 1em; }
+    #btnStartGame { margin-top: 20px; padding: 14px 20px; font-size: 1.2em; background: #10b981; }
+  </style>
+</head>
+<body>
+  
+  <audio id="musicPlayer" loop></audio>
+
+  <div id="gameSetup">
+    <div>
+      <h1>Darts Proto</h1>
+      <h3>Kies Speltype</h3>
+      <div class="options" id="gameTypeOptions">
+        <button data-value="301">301</button>
+        <button data-value="501" class="selected">501</button>
+        <button data-value="Rotatie 301">Rotatie 301</button>
+        <button data-value="Rotatie 501">Rotatie 501</button>
+        <button data-value="Oefenen 301">Oefenen (301)</button>
+        <button data-value="Oefenen 501">Oefenen (501)</button>
+      </div>
+      <h3>Kies Aantal Spelers</h3>
+      <div class="options" id="playerCountOptions">
+        <button data-value="1" class="selected">1 Speler</button>
+        <button data-value="2">2 Spelers</button>
+        <button data-value="3">3 Spelers</button>
+        <button data-value="4">4 Spelers</button>
+      </div>
+      
+      <h3>Namen (optioneel)</h3>
+      <div id="playerNameInputs">
+        </div>
+      
+      <button id="btnStartGame">Start Spel</button>
+    </div>
+  </div>
+  
+  <div id="wrap">
+    <header> 
+      <div class="row">
+        <div>🎯 <strong>Darts Game</strong> <small id="ver"></small></div> <div class="row">
+          <button id="btnFull">⛶ Volledig scherm</button>
+          <button id="btnUndo" disabled>↩️ Ongedaan</button>
+          <button id="btnEndGame">❌ Stop Spel</button>
+          <button id="btnMute" aria-pressed="false">🔈 Geluid</button>
+          <button id="btnBg">📷 Kies achtergrond</button>
+          <button id="btnToggleBg">🖼️ Achtergrond Tonen</button>
+          <button id="btnOverlay">🧭 Overlay</button>
+          <button id="btnDebug">⚙️ Kalibratie Paneel Tonen</button>
+        </div>
+      </div>
+    </header>
+    
+    <div id="scoreboard"></div>
+    
+    <main> 
+      <canvas id="canvas" width="1280" height="720" aria-label="Dartboard canvas"></canvas>
+      <div id="ctrl">
+          <div class="row" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1);">
+              <strong>Kalibratie Paneel</strong> 
+              <button id="btnHideCtrl" style="margin-left: auto;">❌ Verbergen</button>
+          </div>
+          <div>Rotatie: <button id="rotLargeM">−5°</button> <button id="rotLargeP">+5°</button> <button id="rotM">−0.5°</button> <button id="rotP">+0.5°</button> <span id="rotVal"></span></div>
+          <div>Center X: <button id="cxLargeM">−20 px</button> <button id="cxLargeP">+20 px</button> <button id="cxM">−2 px</button> <button id="cxP">+2 px</button> <span id="cxVal"></span></div>
+          <div>Center Y: <button id="cyLargeM">−20 px</button> <button id="cyLargeP">+20 px</button> <button id="cyM">−2 px</button> <button id="cyP">+2 px</button> <span id="cyVal"></span></div>
+          <div>Radius: <button id="rLargeM">−2%</button> <button id="rLargeP">+2%</button> <button id="rM">−0.2%</button> <button id="rP">+0.2%</button> <span id="rVal"></span></div>
+          <div><button id="saveCal">💾 Bewaar</button> <small>(local)</small> <button id="resetCal">↺ Reset</button></div>
+      </div>
+    </main>
+    
+    <footer> 
+      <div class="hint">
+        Besturing: Houd linkermuisknop ingedrukt om te mikken, laat los om te gooien.
+      </div>
+    </footer>
+  </div>
+
+  <div id="videoPopup" style="display:none;">
+    <video id="video180" playsinline></video>
+  </div>
+  <div id="nearMissPopup" style="display:none;">
+    <video id="videoNearMiss" playsinline></video>
+  </div>
+  <div id="topsPopup" style="display:none;">
+    <video id="videoTops" playsinline></video>
+  </div>
+  <div id="triplePopup" style="display:none;">
+    <video id="videoTriple" playsinline></video>
+  </div>
+
+  <div id="winPopup" class="popup-overlay" style="display:none;">
+    <div class="popup-card">
+      <h1>🏆 GEWONNEN! 🏆</h1>
+      <h2 id="winnerName"></h2>
+      <button id="btnNewGamePopup" class="popup-button-primary">Nieuw Spel</button>
+    </div>
+  </div>
+  
+  <div id="turnPopup" class="popup-overlay" style="display:none;">
+    <div class="popup-card">
+      <h1>Beurt Voorbij</h1>
+      <div class="button-row">
+          <button id="btnPopupEndGame" class="popup-button-secondary">❌ Stop Spel</button>
+          <button id="btnPopupNextTurn" class="popup-button-primary">Volgende Beurt ➡️</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/*
+ * Copyright (c) 2025 Christian Glebbeek, iCt Hrose. Alle rechten voorbehouden.
+ * https://icthorse.nl
+ *
+ * Dit script is onderdeel van het Darts Game (v1.12c) en mag niet
+ * worden gekopieerd, gedistribueerd of gewijzigd zonder 
+ * uitdrukkelijke schriftelijke toestemming van de eigenaar.
+ */
+(async () => {
+  const VER = '1.12c';
+  
+  const MIN_HOLD_TIME_MS = 100; 
+  const NEAR_MISS_TOLERANCE = 0.015;
+
+  const cvs = document.getElementById('canvas');
+  const ctx = cvs.getContext('2d');
+  const videoPopup = document.getElementById('videoPopup');
+  const video180 = document.getElementById('video180');
+  const nearMissPopup = document.getElementById('nearMissPopup');
+  const videoNearMiss = document.getElementById('videoNearMiss');
+  const topsPopup = document.getElementById('topsPopup');
+  const videoTops = document.getElementById('videoTops');
+  const triplePopup = document.getElementById('triplePopup');
+  const videoTriple = document.getElementById('videoTriple');
+  
+  const musicPlayer = document.getElementById('musicPlayer');
+  
+  const gameSetupEl = document.getElementById('gameSetup');
+  const wrapEl = document.getElementById('wrap');
+  const scoreboardEl = document.getElementById('scoreboard');
+  const btnEndGame = document.getElementById('btnEndGame');
+  const btnUndo = document.getElementById('btnUndo');
+  const playerNameInputsEl = document.getElementById('playerNameInputs');
+  
+  const winPopupEl = document.getElementById('winPopup');
+  const winnerNameEl = document.getElementById('winnerName');
+  const btnNewGamePopup = document.getElementById('btnNewGamePopup');
+  
+  const turnPopupEl = document.getElementById('turnPopup');
+  const btnPopupNextTurn = document.getElementById('btnPopupNextTurn');
+  const btnPopupEndGame = document.getElementById('btnPopupEndGame');
+
+  const headerEl = document.querySelector('header');
+
+  const DPR = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  
+  function fit(){
+    const w = cvs.clientWidth = innerWidth;
+    const mainEl = document.querySelector('main');
+    const h = mainEl.clientHeight; 
+    
+    cvs.width  = Math.floor(w * DPR);
+    cvs.height = Math.floor(h * DPR);
+  }
+  addEventListener('resize', fit, {passive:true}); 
+
+  const ORDER = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+  const FLIGHT_COLORS = ['#ef4444', '#3b82f6', '#f59e0b', '#10b981']; 
+  const STORAGE = 'darts-v05-cal';
+  const defaultCal = { cx:518.0, cy:518.0, R_do:401.52, rot:0.0 }; 
+  let cal = {...defaultCal};
+  try{ const s = JSON.parse(localStorage.getItem(STORAGE)||'null'); if(s) cal = s; }catch{}
+
+  const state = {
+    gamePhase: 'setup', 
+    startScore: 501,
+    playerCount: 1,
+    rotationMode: false, 
+    scorekeeperMode: false, 
+    players: [], 
+    currentPlayerIndex: 0,
+    turnDarts: [], 
+    turnStartScore: 0, 
+    allDarts: [], 
+    flyingDarts:[], 
+    overlay:true,
+    showBg: false,
+    bg:{img:null, ready:false, dx:0, dy:0, dw:1, dh:1, S:1},
+    visualRotation: 0, 
+    show180: 0,
+    t: 0, 
+    mouse: { x:0, y:0, clientX: 0, clientY: 0, holding: false, clickStartTime: 0 },
+    aim: { tx: 0, ty: 0 }, 
+    turnOverAfterVideo: false,
+    isScoreboardHidden: false,
+    media: {
+      videos180_files: [],
+      nearMiss_files: [],
+      sounds180_files: [],
+      sounds180_buffers: [],
+      entrance_files: [], 
+      videosTops_files: [],
+      videosTriple_files: [],
+      // Decks
+      videos180_deck: [],
+      nearMiss_deck: [],
+      sounds180_deck: [],
+      entrance_deck: [],
+      videosTops_deck: [],
+      videosTriple_deck: []
+    },
+    pendingRewards: 0
+  };
+
+  // --- Audio Logic ---
+  const audio = { ctx:null, muted:false };
+  function ensureAudio(){ if(audio.ctx) return; const C = window.AudioContext||window.webkitAudioContext; if(!C) return; audio.ctx = new C(); }
+  function thunk(){ if(audio.muted) return; ensureAudio(); if(!audio.ctx) return; const t=audio.ctx.currentTime; const o=audio.ctx.createOscillator(); const g=audio.ctx.createGain(); o.type='triangle'; o.frequency.value=160; o.connect(g); g.connect(audio.ctx.destination); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.25, t+.005); g.gain.exponentialRampToValueAtTime(.0001, t+.12); o.start(t); o.stop(t+.18); }
+  
+  function hundoEighty(callback){
+    if(audio.muted || !audio.ctx || state.media.sounds180_buffers.length === 0) {
+      if (callback) callback();
+      return; 
+    }
+    
+    if (state.media.sounds180_deck.length === 0) {
+        state.media.sounds180_deck = [...state.media.sounds180_buffers];
+    }
+    const deck = state.media.sounds180_deck;
+    const index = Math.floor(Math.random() * deck.length);
+    const buffer = deck.splice(index, 1)[0];
+    
+    const source = audio.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audio.ctx.destination);
+    source.onended = callback; 
+    source.start(0);
+  }
+  
+  async function findFiles(basename, extension, list) {
+     let i = 1;
+     let found = true;
+     while(found) {
+       try {
+         const res = await fetch(`${basename}${i}.${extension}`, { method: 'HEAD' });
+         if (res.ok) {
+           list.push(`${basename}${i}.${extension}`);
+           i++;
+         } else {
+           found = false; 
+         }
+       } catch (e) {
+         found = false; 
+       }
+     }
+  }
+
+  async function loadAudioBuffers(files, bufferList) {
+     ensureAudio(); 
+     if (!audio.ctx) return;
+     
+     const promises = files.map(async (file) => {
+        try {
+          const response = await fetch(file);
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = await audio.ctx.decodeAudioData(arrayBuffer);
+          bufferList.push(buffer);
+        } catch(e) {
+          console.warn(`Kon audio niet laden: ${file}`, e);
+        }
+     });
+     await Promise.all(promises);
+  }
+
+  // --- Background Image Logic ---
+  (function tryLoadBG(){
+    const img = new Image();
+    img.onload = ()=>{ state.bg.img=img; state.bg.ready=true; state.showBg = true; document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen'; };
+    img.onerror = ()=>{};
+    img.src = 'dartboard.jpg';
+  })();
+  const btnBg = document.getElementById('btnBg');
+  const bgFile = document.getElementById('bgFile');
+  btnBg.onclick = ()=> bgFile.click();
+  bgFile.onchange = (e)=>{ 
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const url = URL.createObjectURL(f); 
+    const img = new Image();
+    img.onload = ()=>{ state.bg.img=img; state.bg.ready=true; state.showBg = true; document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen'; URL.revokeObjectURL(url); };
+    img.onerror = ()=> URL.revokeObjectURL(url);
+    img.src = url; 
+  };
+
+  // --- Scaling & Scoring Logic ---
+  function computeContain(){
+    const cw=cvs.width, ch=cvs.height;
+    const img = state.bg.img; if(!img) return {dx:0,dy:0,dw:cw,dh:ch,S:1};
+    const ir = img.width/img.height; const cr = cw/ch;
+    let dw, dh, dx, dy;
+    if (cr > ir) { dh = ch; dw = ch * ir; dx = (cw - dw) / 2; dy = 0; }
+    else { dw = cw; dh = cw / ir; dx = 0; dy = (ch - dh) / 2; }
+    const S = dw / img.width; 
+    state.bg.dx=dx; state.bg.dy=dy; state.bg.dw=dw; state.bg.dh=dh; state.bg.S = S;
+    return {dx,dy,dw,dh,S};
+  }
+  function toCanvasFromImage(px,py){ 
+    const {dx,dy,S} = state.bg.S ? state.bg : computeContain(); 
+    const x = (px * S) + dx; const y = (py * S) + dy;
+    return [x,y,S]; 
+  }
+  function toCanvasRadiusFromImage(R){ 
+    const {S} = state.bg.S ? state.bg : computeContain();
+    return R * S; 
+  }
+  const RAT = { bull: 6.35/170, outerBull: 15.9/170, tripleIn: 99/170, tripleOut: 107/170, doubleIn: 162/170, doubleOut: 1.0 };
+  
+  function scoreAtCanvas(xc,yc){
+    const [cx,cy,S] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    const dx = xc - cx, dy = yc - cy;
+    const r = Math.hypot(dx,dy);
+    const dist = r / R;
+    let ring='miss', mult=0, label='Miss', isNearMiss = false;
+    
+    if(dist <= RAT.bull){ ring='bull'; mult=50; label='BULL (50)'; }
+    else if(dist <= RAT.outerBull){ ring='outer'; mult=25; label='Outer Bull (25)'; }
+    else if(dist > RAT.doubleOut){ ring='miss'; mult=0, label='Miss'; }
+    else if(dist >= RAT.doubleIn){ ring='double'; }
+    else if(dist >= RAT.tripleIn && dist <= RAT.tripleOut){ ring='triple'; }
+    else { 
+      ring='single'; 
+      if ( (dist > RAT.tripleIn - NEAR_MISS_TOLERANCE && dist < RAT.tripleIn) ||    
+           (dist < RAT.tripleOut + NEAR_MISS_TOLERANCE && dist > RAT.tripleOut) || 
+           (dist > RAT.doubleIn - NEAR_MISS_TOLERANCE && dist < RAT.doubleIn) ) {  
+          isNearMiss = true;
+      }
+    }
+    
+    let base=0, sector=0;
+    if(ring==='bull' || ring==='outer'){ /* base 0 */ }
+    else if(ring !== 'miss') {
+      let ang = (Math.atan2(yc - cy, xc - cx) * 180/Math.PI);
+      ang = (ang + 90 + 360) % 360;
+      const currentRotation = (cal.rot + state.visualRotation) % 360;
+      ang = (ang - currentRotation + 360) % 360;
+      const idx = Math.floor((ang + 9) / 18) % 20;
+      base = ORDER[idx]; sector=base;
+      if(ring==='double') { mult = base*2; label = `D${base} (${mult})`; }
+      else if(ring==='triple') { mult = base*3; label = `T${base} (${mult})`; }
+      else if(ring==='single') { mult = base; label = `${base}`; }
+    }
+    return {score:mult, ring, sector, base, label, cx, cy, R, dist, r, isNearMiss};
+  }
+
+  const BOGEY_SCORES = [169, 168, 166, 165, 163, 162, 159];
+  const CHECKOUT_GUIDE = {
+    170: "T20-T20-BULL", 167: "T20-T19-BULL", 164: "T20-T18-BULL", 161: "T20-T17-BULL", 160: "T20-T20-D20",
+    158: "T20-T20-D19", 157: "T20-T19-D20", 156: "T20-T20-D18", 155: "T20-T19-D19", 154: "T20-T18-D20",
+    153: "T20-T19-D18", 152: "T20-T20-D16", 151: "T20-T17-D20", 150: "T20-T18-D18", 149: "T20-T19-D16",
+    148: "T20-T16-D20", 147: "T20-T17-D18", 146: "T20-T18-D16", 145: "T20-T15-D20", 144: "T20-T20-D12",
+    143: "T20-T17-D16", 142: "T20-T14-D20", 141: "T20-T19-D12", 140: "T20-T20-D10", 139: "T19-T14-D20",
+    138: "T20-T18-D12", 137: "T20-T19-D10", 136: "T20-T20-D8", 135: "T20-T17-D12", 134: "T20-T14-D16",
+    133: "T20-T19-D8", 132: "T20-T20-D6", 131: "T20-T17-D10", 130: "T20-T20-D5", 129: "T19-T16-D12",
+    128: "T18-T14-D16", 127: "T20-T17-D8", 126: "T19-T19-D6", 125: "T20-T15-D10", 124: "T20-T16-D8",
+    123: "T19-T16-D9", 122: "T18-T20-D4", 121: "T20-T11-D14", 120: "T20-20-D20", 119: "T19-T12-D13",
+    118: "T20-18-D20", 117: "T20-17-D20", 116: "T20-16-D20", 115: "T20-15-D20", 114: "T20-T14-D20",
+    113: "T20-T13-D20", 112: "T20-T12-D20", 111: "T20-T11-D20", 110: "T20-T10-D20", 109: "T19-T12-D20",
+    108: "T20-T8-D20", 107: "T19-T10-D20", 106: "T20-T6-D20", 105: "T20-T5-D20", 104: "T18-T10-D20",
+    103: "T19-T6-D20", 102: "T20-T2-D20", 101: "T17-T10-D20", 100: "T20-D20", 99: "T19-D20", 98: "T20-D19",
+    97: "T19-D20", 96: "T20-D18", 95: "T19-D19", 94: "T18-D20", 93: "T19-D18", 92: "T20-D16",
+    91: "T17-D20", 90: "T20-D15", 89: "T19-D16", 88: "T20-D14", 87: "T17-D18", 86: "T18-D16",
+    85: "T15-D20", 84: "T20-D12", 83: "T17-D16", 82: "T14-D20", 81: "T19-D12", 80: "T20-D10",
+    79: "T13-D20", 78: "T18-D12", 77: "T19-D10", 76: "T20-D8", 75: "T17-D12", 74: "T14-D16",
+    73: "T19-D8", 72: "T16-D12", 71: "T13-D16", 70: "T10-D20", 69: "T19-D6", 68: "T20-D4",
+    67: "T17-D8", 66: "T10-D18", 65: "T19-D4", 64: "T16-D8", 63: "T13-D12", 62: "T10-D16",
+    61: "T15-D8", 60: "20-D20", 59: "19-D20", 58: "18-D20", 57: "17-D20", 56: "16-D20",
+    55: "15-D20", 54: "14-D20", 53: "13-D20", 52: "12-D20", 51: "11-D20", 50: "BULL",
+    49: "9-D20", 48: "8-D20", 47: "7-D20", 46: "6-D20", 45: "5-D20", 44: "4-D20",
+    43: "3-D20", 42: "2-D20", 41: "1-D20", 40: "D20", 39: "7-D16", 38: "D19", 37: "5-D16",
+    36: "D18", 35: "3-D16", 34: "D17", 33: "1-D16", 32: "D16", 31: "15-D8", 30: "D15",
+    29: "13-D8", 28: "D14", 27: "11-D8", 26: "D13", 25: "9-D8", 24: "D12", 23: "7-D8",
+    22: "D11", 21: "5-D8", 20: "D10", 19: "3-D8", 18: "D9", 17: "1-D8", 16: "D8",
+    15: "7-D4", 14: "D7", 13: "5-D4", 12: "D6", 11: "3-D4", 10: "D5", 9: "1-D4",
+    8: "D4", 7: "S3-D2", 6: "D3", 5: "S1-D2", 4: "D2", 3: "S1-D1", 2: "D1"
+  };
+  function getCheckout(score) {
+    if (score > 170 || score < 2 || BOGEY_SCORES.includes(score)) {
+        return "---";
+    }
+    return CHECKOUT_GUIDE[score] || "---"; 
+  }
+
+  function refreshScoreboard(message = "") {
+    let html = '';
+    
+    state.players.forEach((p, index) => {
+      const active = (index === state.currentPlayerIndex);
+      const activeClass = active ? ' active' : '';
+      const isCurrentPlayer = (index === state.currentPlayerIndex);
+      
+      const currentTurnScore = isCurrentPlayer ? state.turnDarts.reduce((acc, d) => acc + d.score, 0) : 0;
+      const dartsRemaining = isCurrentPlayer ? Math.max(0, 3 - state.turnDarts.length) : 0;
+
+      let style = `border-color: ${p.flightColor};`;
+      if (active) {
+          style += `box-shadow: 0 0 8px ${p.flightColor}, inset 0 0 8px ${p.flightColor};`;
+      } else {
+          style += `opacity: 0.7;`;
+      }
+
+      html += `<div class="player-section${activeClass}" style="${style}">`;
+      html += `<div class="player-name">${p.name}</div>`;
+      html += `<div class="nixie-score" data-value="${String(p.score).padStart(3, '0')}"><span>${String(p.score).padStart(3, '0')}</span></div>`;
+      
+      if (!state.scorekeeperMode) {
+          const checkout = getCheckout(p.score);
+          html += `<span class="checkout-label">Mogelijke Finish:</span>`;
+          html += `<div class="nixie-score checkout-guide" data-value="${checkout}"><span>${checkout}</span></div>`;
+      }
+      
+      if (isCurrentPlayer) {
+          html += `<div class="turn-details">`;
+          html += `<span class="turn-score-label">Beurt:</span> <div class="nixie-turn-score" data-value="${String(currentTurnScore).padStart(2, '0')}"><span>${String(currentTurnScore).padStart(2, '0')}</span></div>`;
+          html += `<span class="darts-remaining-label">Nog:</span> <div class="nixie-darts-remaining" data-value="${String(dartsRemaining)}"><span>${String(dartsRemaining)}</span></div>`;
+          html += `</div>`;
+          
+          if (state.scorekeeperMode && state.gamePhase === 'playing') {
+              html += `
+                <div class="manual-entry">
+                  <input type="number" id="manualScoreInput" placeholder="Score..." />
+                  <button id="btnManualScore">OK</button>
+                </div>
+              `;
+          }
+      }
+      html += `</div>`;
+    });
+    
+    if (message) {
+      html += `<div class="message">${message}</div>`;
+    }
+    
+    scoreboardEl.innerHTML = html;
+    
+    btnUndo.disabled = (state.gamePhase !== 'playing' || state.turnDarts.length === 0);
+  }
+
+  // --- Input Handlers ---
+  function setPointer(t){ 
+    const r=cvs.getBoundingClientRect(); 
+    state.mouse.x = (t.clientX-r.left)*DPR;
+    state.mouse.y = (t.clientY-r.top)*DPR;
+    state.mouse.clientX = t.clientX; 
+    state.mouse.clientY = t.clientY; 
+  }
+  // AANGEPAST: v1.12c - Listener naar 'window' verplaatst
+  window.addEventListener('pointermove', e => { setPointer(e); });
+  
+  cvs.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (e.button !== 0) return; 
+    if (state.gamePhase !== 'playing') return; 
+    state.mouse.holding = true;
+    state.mouse.clickStartTime = performance.now();
+  });
+  window.addEventListener('pointerup', e => {
+    if (e.button !== 0) return; 
+    if (!state.mouse.holding) return; 
+
+    const clickDuration = performance.now() - state.mouse.clickStartTime;
+    state.mouse.holding = false; 
+    
+    if (e.target !== cvs) return; 
+    
+    if (clickDuration < MIN_HOLD_TIME_MS) { return; }
+    if (state.gamePhase === 'playing') {
+        throwDartAt(state.aim.tx, state.aim.ty);
+    }
+  });
+  window.addEventListener('pointerleave', e => {
+       if (state.mouse.holding) {
+          state.mouse.holding = false;
+      }
+  });
+
+  
+  videoPopup.onclick = () => { video180.pause(); videoPopup.style.display = 'none'; onRewardFinished(); };
+  video180.onended = () => { 
+      videoPopup.style.display = 'none'; 
+      onRewardFinished();
+  };
+  video180.onclick = (e) => e.stopPropagation();
+  
+  nearMissPopup.onclick = () => {
+    videoNearMiss.pause(); 
+    nearMissPopup.style.display = 'none'; 
+    onRewardFinished();
+  };
+  videoNearMiss.onended = () => { 
+    nearMissPopup.style.display = 'none'; 
+    onRewardFinished();
+  };
+  videoNearMiss.onclick = (e) => e.stopPropagation();
+  
+  topsPopup.onclick = () => { videoTops.pause(); topsPopup.style.display = 'none'; onRewardFinished(); };
+  videoTops.onended = () => { topsPopup.style.display = 'none'; onRewardFinished(); };
+  videoTops.onclick = (e) => e.stopPropagation();
+  
+  triplePopup.onclick = () => { videoTriple.pause(); triplePopup.style.display = 'none'; onRewardFinished(); };
+  videoTriple.onended = () => { triplePopup.style.display = 'none'; onRewardFinished(); };
+  videoTriple.onclick = (e) => e.stopPropagation();
+  
+  btnNewGamePopup.onclick = () => { location.reload(); };
+  btnPopupNextTurn.onclick = nextTurn;
+  btnPopupEndGame.onclick = () => { location.reload(); };
+  
+  document.body.addEventListener('click', e => {
+      if (e.target.id === 'btnManualScore') {
+        const input = document.getElementById('manualScoreInput');
+        if (!input || state.gamePhase !== 'playing' || state.turnDarts.length >= 3) return;
+        
+        let score = parseInt(input.value, 10);
+        if (isNaN(score) || score < 0 || score > 180) {
+          input.value = '';
+          return;
+        }
+        
+        const result = { score: score, ring: 'manual', label: `Handmatig (${score})` };
+        const [cx, cy] = toCanvasFromImage(cal.cx, cal.cy);
+        const currentPlayer = state.players[state.currentPlayerIndex];
+        
+        state.allDarts.push({ sx: cx, sy: cy, ang: -Math.PI/2, result: result, flightColor: currentPlayer.flightColor });
+        state.turnDarts.push(result);
+        
+        checkGameLogic(result);
+        
+        if (state.rotationMode && state.gamePhase !== 'gameover') {
+            state.visualRotation = (state.visualRotation + 90) % 360;
+        }
+        input.value = ''; 
+      }
+  });
+  
+  
+  function throwDartAt(tx, ty) {
+    if (state.gamePhase !== 'playing' || state.turnDarts.length >= 3) return;
+    refreshScoreboard(); 
+    const startX = cvs.width*0.5 + (Math.random()*80-40)*DPR;
+    const startY = cvs.height + 150*DPR;
+    const t0 = performance.now(); 
+    const dur = 400; 
+    const ang = Math.atan2(ty - startY, tx - startX);
+    const arcRandom = 0.5 + Math.random(); 
+    const baseArcHeight = 100 * DPR;
+    const arcHeight = baseArcHeight * arcRandom;
+    const d = {startX, startY, tx, ty, t0, dur, done:false, ang: ang, arcHeight: arcHeight};
+    state.flyingDarts.push(d);
+  }
+
+  // --- Draw Functies ---
+  function drawDart(x,y,angle, flightColor = '#006400'){
+    ctx.save();
+    ctx.translate(x,y); 
+    ctx.rotate(angle);  
+    const s = DPR * 1.2;
+    ctx.translate(-40*s, 0); 
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); 
+    ctx.moveTo(25*s,0); ctx.lineTo(40*s,-2*s); ctx.lineTo(40*s,2*s); 
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#b8860b'; 
+    ctx.lineWidth = 8*s; 
+    ctx.lineCap='butt';
+    ctx.beginPath(); ctx.moveTo(25*s,0); ctx.lineTo(-20*s,0); ctx.stroke();
+    ctx.strokeStyle = '#FDEE00'; 
+    ctx.lineWidth = 2*s;
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.moveTo(20*s, -2*s); ctx.lineTo(-15*s, -2*s); ctx.stroke();
+    ctx.globalAlpha = 1.0;
+    ctx.strokeStyle = '#111'; 
+    ctx.lineWidth = 4*s; 
+    ctx.lineCap='butt';
+    ctx.beginPath(); ctx.moveTo(-20*s,0); ctx.lineTo(-70*s,0); ctx.stroke();
+    ctx.fillStyle = flightColor; 
+    const f = 18*s;
+    ctx.beginPath(); 
+    ctx.moveTo(-70*s,0); ctx.quadraticCurveTo(-86*s,-f,-70*s,-f*1.6); ctx.quadraticCurveTo(-52*s,-f*1.2,-52*s,0); 
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); 
+    ctx.moveTo(-70*s,0); ctx.quadraticCurveTo(-86*s, f,-70*s, f*1.6); ctx.quadraticCurveTo(-52*s, f*1.2,-52*s,0); 
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-60*s, 0); ctx.lineTo(-72*s, f*0.9); ctx.lineTo(-72*s, -f*0.9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+    ctx.restore();
+  }
+
+  function checkHeaderVisibility() {
+    if (state.gamePhase === 'setup' || 
+        state.gamePhase === 'gameover' || 
+        state.gamePhase === 'awaiting_rewards' || 
+        winPopupEl.style.display === 'grid' || 
+        turnPopupEl.style.display === 'grid' || 
+        videoPopup.style.display === 'grid' || 
+        nearMissPopup.style.display === 'grid' ||
+        topsPopup.style.display === 'grid' ||
+        triplePopup.style.display === 'grid') 
+    {
+        headerEl.classList.remove('hidden-by-mouse');
+        scoreboardEl.classList.remove('hidden-by-mouse');
+        return;
+    }
+
+    if (state.mouse.clientY < 80) { 
+        headerEl.classList.remove('hidden-by-mouse');
+        scoreboardEl.classList.remove('hidden-by-mouse');
+    } else {
+        headerEl.classList.add('hidden-by-mouse');
+        scoreboardEl.classList.add('hidden-by-mouse');
+    }
+  }
+
+  function drawAimCursor(t){
+    if (state.scorekeeperMode && !state.mouse.holding) {
+        // Doe niets
+    } else if (state.gamePhase === 'playing' && state.turnDarts.length < 3) {
+        const x = state.mouse.x;
+        const y = state.mouse.y;
+        state.aim.tx = x;
+        state.aim.ty = y;
+        const holding = state.mouse.holding;
+        const color = holding ? '#FF0000' : '#00FF00';
+        const s = DPR;
+        ctx.save();
+        ctx.translate(x, y); 
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1 * s;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(-15 * s, 0); ctx.lineTo(-3 * s, 0); 
+        ctx.moveTo( 15 * s, 0); ctx.lineTo( 3 * s, 0); 
+        ctx.moveTo(0, -15 * s); ctx.lineTo(0, -3 * s); 
+        ctx.moveTo(0,  15 * s); ctx.lineTo(0,  3 * s); 
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, 10 * s, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillRect(-0.5 * s, -0.5 * s, 1 * s, 1 * s); 
+        ctx.restore();
+    }
+  }
+  
+  function drawOverlay(){
+    if(!state.overlay) return;
+    const [cx,cy] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    const currentRotation = (cal.rot + state.visualRotation) % 360;
+    const currentRotationRad = currentRotation * Math.PI / 180;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(currentRotationRad);
+    ctx.translate(-cx, -cy);
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#00ffe0'; ctx.lineWidth = 2 * DPR;
+    const rings = [RAT.bull,RAT.outerBull,RAT.tripleIn,RAT.tripleOut,RAT.doubleIn,RAT.doubleOut];
+    rings.forEach(r=>{ ctx.beginPath(); ctx.arc(cx,cy,R*r,0,Math.PI*2); ctx.stroke(); });
+    ctx.globalAlpha = 0.25;
+    for(let j=0;j<20;j++){ 
+        const a = (j*18 - 9 - 0) * Math.PI/180;
+        const x = cx + Math.cos(a)*R;
+        const y = cy + Math.sin(a)*R; 
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke(); 
+    }
+    ctx.globalAlpha = 1.0; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `${18 * DPR}px sans-serif`; 
+    const R_num = R * 1.08; 
+    for(let i=0; i<20; i++){
+        const baseAngle = 90 - (i * 18);
+        const rotatedAngle = baseAngle - 0;
+        const angleRad = rotatedAngle * Math.PI/180;
+        const x = cx + Math.cos(angleRad) * R_num;
+        const y = cy - Math.sin(angleRad) * R_num;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-currentRotationRad);
+        ctx.fillText(ORDER[i], 0, 0);
+        ctx.restore();
+    }
+    ctx.restore(); 
+  }
+  
+  function drawBackground(){
+    const cw=cvs.width, ch=cvs.height;
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
+    if(state.showBg && state.bg.ready && state.bg.img){
+      const img = state.bg.img;
+      const {dx,dy,dw,dh} = computeContain(); 
+      ctx.save();
+      const centerX = dx + dw / 2;
+      const centerY = dy + dh / 2;
+      ctx.translate(centerX, centerY);
+      ctx.rotate(state.visualRotation * Math.PI / 180);
+      ctx.translate(-centerX, -centerY);
+      ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
+      ctx.restore(); 
+      return;
+    }
+    ctx.fillStyle = '#222'; ctx.fillRect(0,0,cw,ch);
+  }
+  
+  function draw180Banner(t){
+    if (!state.show180) return;
+    const elapsed = t - state.show180;
+    if (elapsed > 3000) { state.show180 = 0; return; }
+    let alpha = 1.0;
+    if (elapsed < 300) alpha = elapsed / 300;
+    else if (elapsed > 2500) alpha = (3000 - elapsed) / 500;
+    const cw = cvs.width, ch = cvs.height;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.85; ctx.fillStyle = '#111'; ctx.fillRect(0, ch * 0.35, cw, ch * 0.3);
+    ctx.globalAlpha = alpha; ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fontSize = Math.min(cw, ch) * 0.2; 
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 20 * DPR;
+    ctx.fillText('180!!', cw / 2, ch / 2);
+    ctx.restore();
+  }
+  
+  function drawStuckDarts() {
+    for (const d of state.allDarts) {
+      drawDart(d.sx, d.sy, d.ang, d.flightColor);
+    }
+  }
+  
+  function updateAndDrawFlyingDarts(t) {
+    const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+    
+    if (state.gamePhase !== 'playing') {
+      state.flyingDarts = []; 
+      return;
+    }
+    
+    const currentPlayer = state.players[state.currentPlayerIndex];
+    
+    for (let i = state.flyingDarts.length - 1; i >= 0; i--) {
+        const d = state.flyingDarts[i];
+        
+        const k = Math.min(1, (t - d.t0) / d.dur); 
+        const e = easeOutCubic(k); 
+        const x = d.startX + (d.tx - d.startX) * e;
+        const arc = Math.sin(k * Math.PI) * d.arcHeight;
+        const y = (d.startY + (d.ty - d.startY) * e) - arc; 
+        const arcSlope = Math.cos(k * Math.PI); 
+        const flightAngleFactor = (d.arcHeight / (400 * DPR)); 
+        const flightAngle = d.ang - (arcSlope * flightAngleFactor);
+        
+        drawDart(x, y, flightAngle, currentPlayer.flightColor);
+        
+        if (k >= 1 && !d.done) {
+            d.done = true;
+            thunk();
+            const result = scoreAtCanvas(d.tx, d.ty); 
+            
+            const [calCX, calCY] = toCanvasFromImage(cal.cx, cal.cy);
+            const R = toCanvasRadiusFromImage(cal.R_do) || 1; 
+            const normX = Math.max(-1, Math.min(1, (d.tx - calCX) / R));
+            const normY = Math.max(-1, Math.min(1, (d.ty - calCY) / R));
+            const perspectiveFactor = 0.12; 
+            const perspectiveWobble = (normY * perspectiveFactor) + (normX * perspectiveFactor);
+            const randomWobble = (Math.random() - 0.5) * 0.05; 
+            const finalAngle = d.ang + perspectiveWobble + randomWobble;
+            
+            state.allDarts.push({ sx: d.tx, sy: d.ty, ang: finalAngle, result: result, flightColor: currentPlayer.flightColor });
+            state.turnDarts.push(result);
+            state.flyingDarts.splice(i, 1);
+            
+            if (state.isScoreboardHidden) {
+                scoreboardEl.style.opacity = '1';
+                scoreboardEl.style.pointerEvents = 'auto';
+                state.isScoreboardHidden = false;
+            }
+            
+            checkGameLogic(result);
+            
+            if (state.rotationMode && state.gamePhase !== 'gameover') {
+                state.visualRotation = (state.visualRotation + 90) % 360;
+            }
+        }
+    }
+  }
+
+  function onRewardFinished() {
+    state.pendingRewards--;
+    if (state.pendingRewards > 0) return; 
+
+    if (state.turnOverAfterVideo) {
+        state.turnOverAfterVideo = false;
+        state.gamePhase = 'turnover';
+        turnPopupEl.style.display = 'grid';
+    } else {
+        state.gamePhase = 'playing';
+    }
+  }
+
+  function checkGameLogic(lastDartResult) {
+      const player = state.players[state.currentPlayerIndex];
+      const turnScore = state.turnDarts.reduce((acc, d) => acc + d.score, 0);
+      let message = "";
+      let is180 = false;
+      let isTops = (lastDartResult.ring === 'double' && lastDartResult.base === 20);
+      let isTriple = (lastDartResult.ring === 'triple' && lastDartResult.base === 20);
+      let isNearMiss = lastDartResult.isNearMiss;
+
+      if (state.scorekeeperMode) {
+          player.score = state.turnStartScore - turnScore; 
+          if (player.score < 0) { player.score = 0; }
+          if (turnScore === 180 && state.turnDarts.length === 3) { is180 = true; }
+      } else {
+          let newScore = state.turnStartScore - turnScore;
+          
+          if (newScore === 0 && (lastDartResult.ring === 'double' || lastDartResult.ring === 'bull')) {
+              player.score = 0;
+              state.gamePhase = 'gameover';
+              message = `🏆 GAME SHOT, ${player.name}! 🏆`;
+              winnerNameEl.textContent = player.name;
+              winPopupEl.style.display = 'grid';
+          }
+          else if (newScore < 0 || newScore === 1) {
+              player.score = state.turnStartScore; 
+              state.gamePhase = 'turnover'; 
+              message = "BUST!";
+              turnPopupEl.style.display = 'grid';
+          }
+          else if (newScore === 0 && lastDartResult.ring !== 'double' && lastDartResult.ring !== 'bull') {
+              player.score = state.turnStartScore;
+              state.gamePhase = 'turnover';
+              message = "BUST! (Geen double)";
+              turnPopupEl.style.display = 'grid';
+          }
+          else {
+              player.score = newScore;
+              if (state.turnDarts.length === 3 && turnScore === 180) { is180 = true; }
+          }
+      }
+      
+      if (state.gamePhase === 'gameover') {
+          refreshScoreboard(message);
+          return;
+      }
+
+      const turnIsOver = (state.turnDarts.length === 3) && (state.gamePhase === 'playing');
+      const playerOnFinish = (player.score <= 170 && !state.scorekeeperMode);
+      let triggeredVideo = false;
+
+      if (turnIsOver) {
+          if (is180) {
+              state.gamePhase = 'awaiting_rewards';
+              state.turnOverAfterVideo = true; 
+              trigger180Rewards(); 
+              triggeredVideo = true;
+          } else if (isTops) {
+              state.gamePhase = 'awaiting_rewards';
+              state.turnOverAfterVideo = true; 
+              triggerTopsVideo();
+              triggeredVideo = true;
+          } else if (isTriple) {
+              state.gamePhase = 'awaiting_rewards';
+              state.turnOverAfterVideo = true; 
+              triggerTripleVideo();
+              triggeredVideo = true;
+          } else if (isNearMiss) {
+              state.gamePhase = 'awaiting_rewards';
+              state.turnOverAfterVideo = true; 
+              triggerNearMissVideo();
+              triggeredVideo = true;
+          } else {
+              state.gamePhase = 'turnover'; 
+              turnPopupEl.style.display = 'grid';
+          }
+      } else { // Pijl 1 of 2
+          if (isTops) {
+              state.gamePhase = 'awaiting_rewards';
+              state.turnOverAfterVideo = false; 
+              triggerTopsVideo();
+              triggeredVideo = true;
+          } else if (isTriple) {
+              state.gamePhase = 'awaiting_rewards';
+              state.turnOverAfterVideo = false; 
+              triggerTripleVideo();
+              triggeredVideo = true;
+          } else if (isNearMiss && playerOnFinish) {
+              state.gamePhase = 'awaiting_rewards';
+              state.turnOverAfterVideo = false; 
+              triggerNearMissVideo();
+              triggeredVideo = true;
+          }
+      }
+      
+      refreshScoreboard(message);
+  }
+
+  function trigger180Rewards() {
+      state.show180 = performance.now(); 
+      let rewardCount = 0;
+
+      if(state.media.sounds180_buffers.length > 0) { rewardCount++; }
+      if (state.media.videos180_files.length > 0) { rewardCount++; } 
+      else { console.warn("180, maar geen 180_videoX.mp4 gevonden."); }
+
+      state.pendingRewards = rewardCount;
+      if (rewardCount === 0) { onRewardFinished(); return; }
+      
+      if(state.media.sounds180_buffers.length > 0) { hundoEighty(onRewardFinished); }
+      if (state.media.videos180_files.length > 0) {
+          if (state.media.videos180_deck.length === 0) { state.media.videos180_deck = [...state.media.videos180_files]; }
+          const deck = state.media.videos180_deck;
+          const videoFile = deck.splice(Math.floor(Math.random() * deck.length), 1)[0]; 
+          video180.src = videoFile;
+          videoPopup.style.display = 'grid';
+          video180.currentTime = 0;
+          video180.play().catch(e => { console.warn("Video autoplay mislukt:", e); onRewardFinished(); });
+      }
+  }
+  
+  function triggerNearMissVideo() {
+      if (state.media.nearMiss_files.length === 0) { onRewardFinished(); return; }
+      state.pendingRewards = 1;
+      
+      if (state.media.nearMiss_deck.length === 0) { state.media.nearMiss_deck = [...state.media.nearMiss_files]; }
+      const deck = state.media.nearMiss_deck;
+      const videoFile = deck.splice(Math.floor(Math.random() * deck.length), 1)[0];
+
+      videoNearMiss.src = videoFile;
+      nearMissPopup.style.display = 'grid';
+      videoNearMiss.currentTime = 0;
+      videoNearMiss.play().catch(e => { console.warn("Near-miss video autoplay mislukt:", e); onRewardFinished(); });
+  }
+
+  function triggerTopsVideo() {
+      if (state.media.videosTops_files.length === 0) { onRewardFinished(); return; }
+      state.pendingRewards = 1;
+      
+      if (state.media.videosTops_deck.length === 0) { state.media.videosTops_deck = [...state.media.videosTops_files]; }
+      const deck = state.media.videosTops_deck;
+      const videoFile = deck.splice(Math.floor(Math.random() * deck.length), 1)[0];
+
+      videoTops.src = videoFile;
+      topsPopup.style.display = 'grid';
+      videoTops.currentTime = 0;
+      videoTops.play().catch(e => { console.warn("Tops video autoplay mislukt:", e); onRewardFinished(); });
+  }
+  
+  function triggerTripleVideo() {
+      if (state.media.videosTriple_files.length === 0) { onRewardFinished(); return; }
+      state.pendingRewards = 1;
+      
+      if (state.media.videosTriple_deck.length === 0) { state.media.videosTriple_deck = [...state.media.videosTriple_files]; }
+      const deck = state.media.videosTriple_deck;
+      const videoFile = deck.splice(Math.floor(Math.random() * deck.length), 1)[0];
+
+      videoTriple.src = videoFile;
+      triplePopup.style.display = 'grid';
+      videoTriple.currentTime = 0;
+      videoTriple.play().catch(e => { console.warn("Triple video autoplay mislukt:", e); onRewardFinished(); });
+  }
+
+  // --- Hoofd Game Loop ---
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min(0.033, (now-last)/1000); 
+    last = now;
+    state.t += dt;
+    drawBackground();
+    drawOverlay();
+    drawStuckDarts();
+    updateAndDrawFlyingDarts(now);
+    draw180Banner(now);
+    drawAimCursor(state.t);
+    checkHeaderVisibility();
+    requestAnimationFrame(loop);
+  }
+  
+  function nextTurn() {
+      turnPopupEl.style.display = 'none';
+
+      if (state.gamePhase === 'gameover') {
+          location.reload();
+          return;
+      }
+      if (state.isScoreboardHidden) {
+          scoreboardEl.style.opacity = '1';
+          scoreboardEl.style.pointerEvents = 'auto';
+          state.isScoreboardHidden = false;
+      }
+      
+      state.allDarts = []; 
+      state.turnDarts = [];
+      state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+      state.turnStartScore = state.players[state.currentPlayerIndex].score; 
+      state.gamePhase = 'playing';
+      refreshScoreboard();
+  }
+  
+  function undoLastDart() {
+      if (state.gamePhase !== 'playing' || state.turnDarts.length === 0) return;
+      
+      const undoneDartResult = state.turnDarts.pop();
+      state.allDarts.pop();
+      
+      const player = state.players[state.currentPlayerIndex];
+      
+      if (state.scorekeeperMode) {
+          player.score = state.turnStartScore - state.turnDarts.reduce((acc, d) => acc + d.score, 0); 
+          if (player.score < 0) player.score = 0; 
+      } else {
+          player.score = state.turnStartScore - state.turnDarts.reduce((acc, d) => acc + d.score, 0);
+      }
+      
+      if (state.rotationMode) {
+          state.visualRotation = (state.visualRotation - 90 + 360) % 360;
+      }
+      
+      refreshScoreboard();
+  }
+
+  function startGame() {
+      const selectedTypeBtn = document.querySelector('#gameTypeOptions button.selected');
+      const gameType = selectedTypeBtn.dataset.value;
+      
+      if (gameType.includes('Rotatie')) { state.rotationMode = true; }
+      
+      if (gameType.includes('Oefenen')) {
+          state.scorekeeperMode = true;
+          state.startScore = parseInt(gameType.replace('Oefenen ', ''), 10);
+      } else {
+          state.scorekeeperMode = false; 
+          state.startScore = parseInt(gameType.replace('Rotatie ', ''), 10);
+      }
+      
+      state.players = [];
+      for (let i = 0; i < state.playerCount; i++) {
+          const inputEl = document.getElementById(`player${i}`);
+          const playerName = (inputEl && inputEl.value) ? inputEl.value : `Speler ${i + 1}`;
+          
+          state.players.push({
+              name: playerName,
+              score: state.startScore,
+              flightColor: FLIGHT_COLORS[i % FLIGHT_COLORS.length]
+          });
+      }
+      
+      state.media.videos180_deck = [...state.media.videos180_files];
+      state.media.nearMiss_deck = [...state.media.nearMiss_files];
+      state.media.sounds180_deck = [...state.media.sounds180_buffers];
+      state.media.entrance_deck = [...state.media.entrance_files];
+      state.media.videosTops_deck = [...state.media.videosTops_files];
+      state.media.videosTriple_deck = [...state.media.videosTriple_files];
+      
+      state.currentPlayerIndex = 0;
+      state.turnStartScore = state.startScore; 
+      state.gamePhase = 'playing';
+      
+      gameSetupEl.style.display = 'none';
+      wrapEl.style.display = 'grid';
+      
+      // AANGEPAST: v1.12c - Zet het versienummer *nadat* #wrap zichtbaar is
+      document.getElementById('ver').textContent = 'v'+VER;
+      fit();
+      
+      if (state.playerCount === 1 && state.media.entrance_files.length > 0) {
+          if (state.media.entrance_deck.length === 0) {
+             state.media.entrance_deck = [...state.media.entrance_files];
+          }
+          const deck = state.media.entrance_deck;
+          const index = Math.floor(Math.random() * deck.length);
+          const musicFile = deck.splice(index, 1)[0]; 
+          
+          musicPlayer.src = musicFile;
+          musicPlayer.volume = 0.4; 
+          musicPlayer.muted = audio.muted; 
+          musicPlayer.play().catch(e => console.warn("Autoplay walk-on music failed:", e));
+      }
+      
+      refreshScoreboard();
+      
+      requestAnimationFrame(loop); 
+  }
+
+  // --- UI Knoppen & Logica ---
+  const ctrl = document.getElementById('ctrl');
+  const btnDebug = document.getElementById('btnDebug');
+  const btnHideCtrl = document.getElementById('btnHideCtrl'); 
+  function toggleCtrlPanel(explicitHide = false) {
+    const isVisible = ctrl.style.display !== 'none';
+    if (explicitHide || isVisible) { ctrl.style.display = 'none'; btnDebug.textContent = '⚙️ Kalibratie Paneel Tonen'; }
+    else { ctrl.style.display = 'block'; btnDebug.textContent = '⚙️ Kalibratie Paneel Verbergen'; }
+  }
+  btnDebug.onclick = () => toggleCtrlPanel();
+  btnHideCtrl.onclick = () => toggleCtrlPanel(true);
+  const btnToggleBg = document.getElementById('btnToggleBg');
+  btnToggleBg.onclick = ()=>{ if (state.bg.ready) { state.showBg = !state.showBg; btnToggleBg.textContent = state.showBg ? '🖼️ Achtergrond Verbergen' : '🖼️ Achtergrond Tonen'; } };
+  
+  btnEndGame.onclick = () => { 
+    musicPlayer.pause(); 
+    location.reload(); 
+  };
+  btnUndo.onclick = undoLastDart; 
+
+  document.getElementById('btnFull').onclick = ()=>{ const el=document.documentElement; if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen).call(el); } else { document.exitFullscreen && document.exitFullscreen(); }};
+  
+  document.getElementById('btnMute').onclick = (e)=>{ 
+    audio.muted = !audio.muted; 
+    musicPlayer.muted = audio.muted;
+    e.currentTarget.setAttribute('aria-pressed', String(audio.muted)); 
+    e.currentTarget.textContent = audio.muted? '🔇 Gedempt':'🔈 Geluid'; 
+  };
+  
+  document.getElementById('btnOverlay').onclick = ()=>{ state.overlay = !state.overlay; };
+  
+  function updatePlayerInputs(count) {
+      playerNameInputsEl.innerHTML = ''; 
+      for (let i = 0; i < count; i++) {
+          playerNameInputsEl.innerHTML += `
+              <div class="input-group">
+                <label for="player${i}" style="color:${FLIGHT_COLORS[i % FLIGHT_COLORS.length]}">Speler ${i + 1}:</label>
+                <input type="text" id="player${i}" class="player-name-input" placeholder="Speler ${i + 1}" style="border-color:${FLIGHT_COLORS[i % FLIGHT_COLORS.length]}">
+              </div>
+          `;
+      }
+  }
+
+  document.getElementById('gameTypeOptions').onclick = (e) => {
+      if (e.target.tagName === 'BUTTON') {
+          document.querySelectorAll('#gameTypeOptions button').forEach(b => b.classList.remove('selected'));
+          e.target.classList.add('selected');
+      }
+  };
+  document.getElementById('playerCountOptions').onclick = (e) => {
+      if (e.target.tagName === 'BUTTON') {
+          document.querySelectorAll('#playerCountOptions button').forEach(b => b.classList.remove('selected'));
+          e.target.classList.add('selected');
+          state.playerCount = parseInt(e.target.dataset.value, 10);
+          updatePlayerInputs(state.playerCount); 
+      }
+  };
+  document.getElementById('btnStartGame').onclick = startGame;
+
+  // --- Kalibratie Knoppen ---
+  const rotVal = document.getElementById('rotVal'), cxVal = document.getElementById('cxVal'), cyVal = document.getElementById('cyVal'), rVal = document.getElementById('rVal');
+  const saveCal = document.getElementById('saveCal'), resetCal = document.getElementById('resetCal');
+  function updateLabels(){
+    cal.rot = (cal.rot % 360 + 360) % 360; 
+    rotVal.textContent = `= ${cal.rot.toFixed(2)}°`;
+    cxVal.textContent = `= ${cal.cx.toFixed(1)} px`;
+    cyVal.textContent = `= ${cal.cy.toFixed(1)} px`;
+    rVal.textContent  = `= ${cal.R_do.toFixed(2)} px`;
+  }
+  updateLabels();
+  let intervalId = null; const HOLD_DELAY = 80; 
+  function clearHold() { if (intervalId !== null) { clearInterval(intervalId); intervalId = null; } }
+  function setupHoldableButton(button, action) {
+    button.addEventListener('pointerdown', (e) => { e.preventDefault(); action(); intervalId = setInterval(() => { action(); }, HOLD_DELAY); });
+    button.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+    button.addEventListener('pointerup', clearHold); button.addEventListener('pointerleave', clearHold); button.addEventListener('pointercancel', clearHold);
+  }
+  setupHoldableButton(document.getElementById('rotLargeM'), ()=>{ cal.rot -= 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotLargeP'), ()=>{ cal.rot += 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotM'),      ()=>{ cal.rot -= 0.5; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotP'),      ()=>{ cal.rot += 0.5; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxLargeM'),  ()=>{ cal.cx -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxLargeP'),  ()=>{ cal.cx += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxM'),       ()=>{ cal.cx -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxP'),       ()=>{ cal.cx += 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyLargeM'),  ()=>{ cal.cy -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyLargeP'),  ()=>{ cal.cy += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyM'),       ()=>{ cal.cy -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyP'),       ()=>{ cal.cy += 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('rLargeM'),   ()=>{ cal.R_do *= 0.98; updateLabels(); });
+  setupHoldableButton(document.getElementById('rLargeP'),   ()=>{ cal.R_do *= 1.02; updateLabels(); });
+  setupHoldableButton(document.getElementById('rM'),        ()=>{ cal.R_do *= 0.998; updateLabels(); });
+  setupHoldableButton(document.getElementById('rP'),        ()=>{ cal.R_do *= 1.002; updateLabels(); });
+  saveCal.onclick = ()=>{ try{ localStorage.setItem(STORAGE, JSON.stringify(cal)); }catch{} };
+  resetCal.onclick = ()=>{ cal = {...defaultCal}; try{ localStorage.removeItem(STORAGE); }catch{}; updateLabels(); };
+
+  // --- Init ---
+  
+  updatePlayerInputs(1); 
+  
+  console.log("Media aan het controleren...");
+  Promise.all([
+     findFiles('180_video', 'mp4', state.media.videos180_files),
+     findFiles('near_miss', 'mp4', state.media.nearMiss_files),
+     findFiles('180_audio', 'mp3', state.media.sounds180_files),
+     findFiles('entrance', 'mp3', state.media.entrance_files),
+     findFiles('video_tops', 'mp4', state.media.videosTops_files), 
+     findFiles('video_triple', 'mp4', state.media.videosTriple_files) 
+  ]).then(() => {
+      console.log('Media controle voltooid.');
+      console.log('Gevonden 180 video\'s:', state.media.videos180_files);
+      console.log('Gevonden near-miss video\'s:', state.media.nearMiss_files);
+      console.log('Gevonden tops video\'s:', state.media.videosTops_files);
+      console.log('Gevonden triple video\'s:', state.media.videosTriple_files);
+      console.log('Gevonden 180 audio-bestanden:', state.media.sounds180_files);
+      console.log('Gevonden opkomst-muziek:', state.media.entrance_files);
+      
+      console.log("Audio buffers aan het laden...");
+      return loadAudioBuffers(state.media.sounds180_files, state.media.sounds180_buffers);
+  }).then(() => {
+      console.log('Audio buffers geladen:', state.media.sounds180_buffers.length);
+  });
+  
+})();
+</script>
+</body>
+</html>

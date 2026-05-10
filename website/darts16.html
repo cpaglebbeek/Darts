@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Darts Proto v0.26 (Spelernamen & Gekleurde Scores)</title>
+  <style>
+    html, body { margin:0; height:100%; background:#0b0f14; color:#e7f0ff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; overflow:hidden; }
+    #wrap { position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr auto; display:none; }
+    header, footer { padding:8px 12px; background:#0f1620; border-bottom:1px solid #1c2633; z-index:10; }
+    footer { border-top:1px solid #1c2633; border-bottom:none; font-size:12px; opacity:.9; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    
+    button { 
+      appearance:none; border:none; padding:8px 10px; border-radius:10px; 
+      background:#1b2736; color:#e7f0ff; 
+      box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 1px 8px rgba(0,0,0,.25); 
+      cursor:pointer; 
+      user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    button:active { transform:translateY(1px); }
+    
+    #canvas { 
+      position:fixed; top:0; left:0; width:100vw; height:100vh; 
+      display:block; touch-action:none; background:#000;
+      cursor: none; 
+    }
+    
+    #scoreboard { 
+      position:fixed; top:56px; right:12px; 
+      background:rgba(20,24,30,.7);
+      padding:15px 20px; border-radius:12px; 
+      font-family:'DSEG7', monospace; 
+      backdrop-filter: blur(8px); 
+      border:1px solid rgba(255,255,255,0.1); 
+      box-shadow: 0 0 20px rgba(0,0,0,0.5), inset 0 0 10px rgba(255,255,255,0.05);
+      min-width:240px; z-index:5;
+    }
+    #scoreboard .player-section {
+      background: #0d1016;
+      padding: 10px 15px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      border: 1px solid #2a3340;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+      position: relative;
+      /* AANGEPAST: v0.26 - Kleur wordt nu via inline style gezet */
+    }
+    /* AANGEPAST: v0.26 - Actieve stijl (gloed) wordt nu via inline style gezet */
+    /* #scoreboard .player-section.active { ... } - Verwijderd */
+
+    #scoreboard .player-name {
+      color: #e7f0ff;
+      font-size: 1.1em;
+      margin-bottom: 5px;
+      font-family: system-ui; 
+    }
+    #scoreboard .nixie-score,
+    #scoreboard .nixie-turn-score,
+    #scoreboard .nixie-darts-remaining {
+      font-family: 'DSEG7 Classic', monospace; 
+      font-size: 2.2em; 
+      color: #ff9900; 
+      text-shadow: 
+        0 0 2px #ff9900, 
+        0 0 10px #ff9900, 
+        0 0 20px rgba(255,153,0,0.5); 
+      letter-spacing: 0.05em;
+      background: #1a1e26; 
+      padding: 5px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      min-width: 60px; 
+      text-align: right;
+      position: relative;
+      overflow: hidden; 
+    }
+    #scoreboard .nixie-score::before,
+    #scoreboard .nixie-turn-score::before,
+    #scoreboard .nixie-darts-remaining::before {
+      content: attr(data-value); 
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      color: rgba(255,153,0,0.1); 
+      text-shadow: none; 
+      z-index: 1;
+      opacity: 0.5;
+    }
+    #scoreboard .nixie-score span,
+    #scoreboard .nixie-turn-score span,
+    #scoreboard .nixie-darts-remaining span {
+      position: relative;
+      z-index: 2; 
+    }
+    #scoreboard .turn-details {
+      margin-top: 8px;
+      font-size: 0.9em;
+      color: #aebacd;
+      font-family: system-ui;
+    }
+    #scoreboard .turn-details .turn-score-label,
+    #scoreboard .turn-details .darts-remaining-label {
+        font-size: 0.8em;
+        opacity: 0.7;
+    }
+    #scoreboard .message {
+      margin-top: 15px;
+      color: #ff0000;
+      font-weight: bold;
+      text-shadow: 0 0 5px #ff0000;
+      font-family: system-ui;
+    }
+    @font-face {
+        font-family: 'DSEG7 Classic';
+        src: url('DSEG7Classic-Regular.woff') format('woff'); 
+        font-weight: normal;
+        font-style: normal;
+    }
+
+    #ctrl { 
+      position:fixed; top:56px; left:12px; 
+      background:rgba(8,12,18,.6); padding:8px 10px; border-radius:10px; 
+      font:12px/1.35 monospace; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,.08); 
+      max-width:54ch; display: none; z-index:5;
+    }
+    #ctrl button { padding:4px 8px; border-radius:8px; }
+
+    .hint { opacity:.8; font-size:12px; margin-left:12px; }
+
+    #videoPopup {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+      display: none; z-index: 100; display: grid; place-items: center;
+    }
+    #video180 {
+      width: 90vw; max-width: 800px; height: auto; object-fit: contain;
+      border: 2px solid #fff; border-radius: 8px;
+    }
+    
+    #gameSetup {
+      position: fixed;
+      inset: 0;
+      background: #0b0f14;
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 1.2em;
+    }
+    #gameSetup h1 { font-weight: 300; }
+    #gameSetup .options { display: flex; gap: 10px; margin: 15px 0; flex-wrap:wrap; justify-content:center; }
+    #gameSetup .options button { 
+        padding: 12px 16px; font-size: 1.1em;
+        background: #1b2736;
+        opacity: 0.7;
+    }
+    #gameSetup .options button.selected {
+        background: #3b82f6; 
+        opacity: 1.0;
+        box-shadow: 0 0 10px #3b82f6;
+    }
+    /* AANGEPAST: v0.26 - Stijlen voor naam-invoer */
+    #gameSetup .input-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    #gameSetup .input-group label {
+      opacity: 0.8;
+      font-size: 0.9em;
+      min-width: 80px; /* Zorgt voor uitlijning */
+      text-align: right;
+    }
+    #gameSetup .input-group input {
+      background: #1b2736;
+      border: 1px solid #2a3340;
+      color: #e7f0ff;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 1em;
+    }
+    
+    #btnStartGame {
+        margin-top: 20px;
+        padding: 14px 20px;
+        font-size: 1.2em;
+        background: #10b981; 
+    }
+  </style>
+</head>
+<body>
+  
+  <div id="gameSetup">
+    <div>
+      <h1>Darts Proto</h1>
+      <h3>Kies Speltype</h3>
+      <div class="options" id="gameTypeOptions">
+        <button data-value="301">301</button>
+        <button data-value="501" class="selected">501</button>
+        <button data-value="Rotatie 301">Rotatie 301</button>
+        <button data-value="Rotatie 501">Rotatie 501</button>
+      </div>
+      <h3>Kies Aantal Spelers</h3>
+      <div class="options" id="playerCountOptions">
+        <button data-value="1" class="selected">1 Speler</button>
+        <button data-value="2">2 Spelers</button>
+        <button data-value="3">3 Spelers</button>
+        <button data-value="4">4 Spelers</button>
+      </div>
+      
+      <h3>Namen (optioneel)</h3>
+      <div id="playerNameInputs">
+        </div>
+      
+      <button id="btnStartGame">Start Spel</button>
+    </div>
+  </div>
+  
+  <div id="wrap">
+    <header>
+      <div class="row">
+        <div>🎯 <strong>Darts Proto</strong> <small id="ver">v0.26</small></div>
+        <div class="row">
+          <button id="btnFull">⛶ Volledig scherm</button>
+          <button id="btnNextTurn">Volgende Beurt</button>
+          <button id="btnMute" aria-pressed="false">🔈 Geluid</button>
+          <button id="btnTest180">📣 Test 180</button>
+          <button id="btnBg">📷 Kies achtergrond</button>
+          <button id="btnToggleBg">🖼️ Achtergrond Tonen</button>
+          <button id="btnOverlay">🧭 Overlay</button>
+          <button id="btnDebug">⚙️ Kalibratie Paneel Tonen</button>
+        </div>
+      </div>
+    </header>
+    <input id="bgFile" type="file" accept="image/*" style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px;" />
+    
+    <canvas id="canvas" width="1280" height="720" aria-label="Dartboard canvas"></canvas>
+    
+    <div id="scoreboard"></div>
+    
+    <div id="ctrl">
+        <div class="row" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1);">
+            <strong>Kalibratie Paneel</strong> 
+            <button id="btnHideCtrl" style="margin-left: auto;">❌ Verbergen</button>
+        </div>
+        <div>Rotatie: <button id="rotLargeM">−5°</button> <button id="rotLargeP">+5°</button> <button id="rotM">−0.5°</button> <button id="rotP">+0.5°</button> <span id="rotVal"></span></div>
+        <div>Center X: <button id="cxLargeM">−20 px</button> <button id="cxLargeP">+20 px</button> <button id="cxM">−2 px</button> <button id="cxP">+2 px</button> <span id="cxVal"></span></div>
+        <div>Center Y: <button id="cyLargeM">−20 px</button> <button id="cyLargeP">+20 px</button> <button id="cyM">−2 px</button> <button id="cyP">+2 px</button> <span id="cyVal"></span></div>
+        <div>Radius: <button id="rLargeM">−2%</button> <button id="rLargeP">+2%</button> <button id="rM">−0.2%</button> <button id="rP">+0.2%</button> <span id="rVal"></span></div>
+        <div><button id="saveCal">💾 Bewaar</button> <small>(local)</small> <button id="resetCal">↺ Reset</button></div>
+    </div>
+    
+    <div id="videoPopup" style="display:none;">
+      <video id="video180" src="180_video1.mp4" playsinline></video>
+    </div>
+
+    <main></main>
+    
+    <footer>
+      <div class="hint">
+        <strong>Besturing:</strong> Houd linkermuisknop ingedrukt om te mikken, laat los om te gooien.
+      </div>
+    </footer>
+  </div>
+
+<script>
+(() => {
+  // AANGEPAST: Versie en features
+  // v0.26: Spelernamen invoer, scorebordkleuren gekoppeld aan flightkleuren.
+  const VER = '0.26';
+  document.getElementById('ver').textContent = 'v'+VER;
+  
+  const MIN_HOLD_TIME_MS = 100; 
+
+  const cvs = document.getElementById('canvas');
+  const ctx = cvs.getContext('2d');
+  const videoPopup = document.getElementById('videoPopup');
+  const video180 = document.getElementById('video180');
+  const gameSetupEl = document.getElementById('gameSetup');
+  const wrapEl = document.getElementById('wrap');
+  const scoreboardEl = document.getElementById('scoreboard');
+  const btnNextTurn = document.getElementById('btnNextTurn');
+  // AANGEPAST: v0.26 - Nieuw DOM-element
+  const playerNameInputsEl = document.getElementById('playerNameInputs');
+
+  const DPR = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  
+  function fit(){
+    const w = cvs.clientWidth = innerWidth;
+    const h = cvs.clientHeight = innerHeight;
+    cvs.width  = Math.floor(w * DPR);
+    cvs.height = Math.floor(h * DPR);
+  }
+  addEventListener('resize', fit, {passive:true}); fit();
+
+  const ORDER = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+  const FLIGHT_COLORS = ['#ef4444', '#3b82f6', '#f59e0b', '#10b981']; 
+  const STORAGE = 'darts-v05-cal';
+  const defaultCal = { cx:518.0, cy:518.0, R_do:401.52, rot:0.0 }; 
+  let cal = {...defaultCal};
+  try{ const s = JSON.parse(localStorage.getItem(STORAGE)||'null'); if(s) cal = s; }catch{}
+
+  const state = {
+    gamePhase: 'setup', 
+    startScore: 501,
+    playerCount: 1,
+    rotationMode: false, 
+    players: [], 
+    currentPlayerIndex: 0,
+    turnDarts: [], 
+    turnStartScore: 0, 
+    allDarts: [], 
+    flyingDarts:[], 
+    overlay:true,
+    showBg: false,
+    bg:{img:null, ready:false, dx:0, dy:0, dw:1, dh:1, S:1},
+    visualRotation: 0, 
+    show180: 0,
+    t: 0, 
+    mouse: { x:0, y:0, holding: false, clickStartTime: 0 },
+    aim: { tx: 0, ty: 0 }, 
+  };
+
+  // --- Audio Logic ---
+  const audio = { ctx:null, muted:false, buffer180: null };
+  function ensureAudio(){ if(audio.ctx) return; const C = window.AudioContext||window.webkitAudioContext; if(!C) return; audio.ctx = new C(); }
+  function thunk(){ if(audio.muted) return; ensureAudio(); if(!audio.ctx) return; const t=audio.ctx.currentTime; const o=audio.ctx.createOscillator(); const g=audio.ctx.createGain(); o.type='triangle'; o.frequency.value=160; o.connect(g); g.connect(audio.ctx.destination); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.25, t+.005); g.gain.exponentialRampToValueAtTime(.0001, t+.12); o.start(t); o.stop(t+.18); }
+  function hundoEighty(){
+    if(audio.muted || !audio.buffer180) return; 
+    ensureAudio(); if(!audio.ctx) return; 
+    const source = audio.ctx.createBufferSource();
+    source.buffer = audio.buffer180;
+    source.connect(audio.ctx.destination);
+    source.start(0);
+  }
+  (async function load180Audio() {
+      try {
+          ensureAudio(); if (!audio.ctx) return;
+          const response = await fetch('Best Dart 180 Voice.mp3'); 
+          if (!response.ok) throw new Error(`Kon audiobestand niet laden: ${response.statusText}`);
+          const arrayBuffer = await response.arrayBuffer();
+          audio.buffer180 = await audio.ctx.decodeAudioData(arrayBuffer);
+      } catch (e) { console.error('Fout bij het laden van de 180 audio:', e); }
+  })();
+
+  // --- Background Image Logic ---
+  (function tryLoadBG(){
+    const img = new Image();
+    img.onload = ()=>{ state.bg.img=img; state.bg.ready=true; state.showBg = true; document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen'; };
+    img.onerror = ()=>{};
+    img.src = 'dartboard.jpg';
+  })();
+  const btnBg = document.getElementById('btnBg');
+  const bgFile = document.getElementById('bgFile');
+  btnBg.onclick = ()=> bgFile.click();
+  bgFile.onchange = (e)=>{ 
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const url = URL.createObjectURL(f); 
+    const img = new Image();
+    img.onload = ()=>{ state.bg.img=img; state.bg.ready=true; state.showBg = true; document.getElementById('btnToggleBg').textContent = '🖼️ Achtergrond Verbergen'; URL.revokeObjectURL(url); };
+    img.onerror = ()=> URL.revokeObjectURL(url);
+    img.src = url; 
+  };
+
+  // --- Scaling & Scoring Logic ---
+  function computeContain(){
+    const cw=cvs.width, ch=cvs.height;
+    const img = state.bg.img; if(!img) return {dx:0,dy:0,dw:cw,dh:ch,S:1};
+    const ir = img.width/img.height; const cr = cw/ch;
+    let dw, dh, dx, dy;
+    if (cr > ir) { dh = ch; dw = ch * ir; dx = (cw - dw) / 2; dy = 0; }
+    else { dw = cw; dh = cw / ir; dx = 0; dy = (ch - dh) / 2; }
+    const S = dw / img.width; 
+    state.bg.dx=dx; state.bg.dy=dy; state.bg.dw=dw; state.bg.dh=dh; state.bg.S = S;
+    return {dx,dy,dw,dh,S};
+  }
+  function toCanvasFromImage(px,py){ 
+    const {dx,dy,S} = state.bg.S ? state.bg : computeContain(); 
+    const x = (px * S) + dx; const y = (py * S) + dy;
+    return [x,y,S]; 
+  }
+  function toCanvasRadiusFromImage(R){ 
+    const {S} = state.bg.S ? state.bg : computeContain();
+    return R * S; 
+  }
+  const RAT = { bull: 6.35/170, outerBull: 15.9/170, tripleIn: 99/170, tripleOut: 107/170, doubleIn: 162/170, doubleOut: 1.0 };
+  
+  function scoreAtCanvas(xc,yc){
+    const [cx,cy,S] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    const dx = xc - cx, dy = yc - cy;
+    const r = Math.hypot(dx,dy);
+    const dist = r / R;
+    let ring='miss', mult=0, label='Miss';
+    if(dist <= RAT.bull){ ring='bull'; mult=50; label='BULL (50)'; }
+    else if(dist <= RAT.outerBull){ ring='outer'; mult=25; label='Outer Bull (25)'; }
+    else if(dist > RAT.doubleOut){ ring='miss'; mult=0, label='Miss'; }
+    else if(dist >= RAT.doubleIn){ ring='double'; }
+    else if(dist >= RAT.tripleIn && dist <= RAT.tripleOut){ ring='triple'; }
+    else { ring='single'; }
+    let base=0, sector=0;
+    if(ring==='bull' || ring==='outer'){ /* base 0 */ }
+    else {
+      let ang = (Math.atan2(yc - cy, xc - cx) * 180/Math.PI);
+      ang = (ang + 90 + 360) % 360;
+      const currentRotation = (cal.rot + state.visualRotation) % 360;
+      ang = (ang - currentRotation + 360) % 360;
+      const idx = Math.floor((ang + 9) / 18) % 20;
+      base = ORDER[idx]; sector=base;
+      if(ring==='double') { mult = base*2; label = `D${base} (${mult})`; }
+      else if(ring==='triple') { mult = base*3; label = `T${base} (${mult})`; }
+      else if(ring==='single') { mult = base; label = `${base}`; }
+    }
+    return {score:mult, ring, sector, base, label, cx, cy, R, dist, r};
+  }
+
+  // AANGEPAST: v0.26 - Past stijl van speler-sectie dynamisch aan
+  function refreshScoreboard(message = "") {
+    let html = '';
+    
+    state.players.forEach((p, index) => {
+      const active = (index === state.currentPlayerIndex);
+      const activeClass = active ? ' active' : '';
+      const isCurrentPlayer = (index === state.currentPlayerIndex);
+      
+      const currentTurnScore = isCurrentPlayer ? state.turnDarts.reduce((acc, d) => acc + d.score, 0) : 0;
+      const dartsRemaining = isCurrentPlayer ? Math.max(0, 3 - state.turnDarts.length) : 0;
+
+      // Dynamische stijl op basis van flight-kleur
+      let style = `border-color: ${p.flightColor};`;
+      if (active) {
+          style += `box-shadow: 0 0 8px ${p.flightColor}, inset 0 0 8px ${p.flightColor};`;
+      } else {
+          style += `opacity: 0.7;`; // Dim inactieve spelers
+      }
+
+      html += `<div class="player-section${activeClass}" style="${style}">`;
+      html += `<div class="player-name">${p.name}</div>`;
+      html += `<div class="nixie-score" data-value="${String(p.score).padStart(3, '0')}"><span>${String(p.score).padStart(3, '0')}</span></div>`;
+      
+      if (isCurrentPlayer) {
+          html += `<div class="turn-details">`;
+          html += `<span class="turn-score-label">Beurt:</span> <div class="nixie-turn-score" data-value="${String(currentTurnScore).padStart(2, '0')}"><span>${String(currentTurnScore).padStart(2, '0')}</span></div>`;
+          html += `<span class="darts-remaining-label">Nog:</span> <div class="nixie-darts-remaining" data-value="${String(dartsRemaining)}"><span>${String(dartsRemaining)}</span></div>`;
+          html += `</div>`;
+      }
+      html += `</div>`;
+    });
+    
+    if (message) {
+      html += `<div class="message">${message}</div>`;
+    }
+    
+    scoreboardEl.innerHTML = html;
+    
+    if (state.gamePhase === 'gameover') {
+        btnNextTurn.textContent = '🏆 Nieuw Spel 🏆';
+    } else if (state.gamePhase === 'turnover') {
+        btnNextTurn.textContent = 'Volgende Beurt ➡️';
+        state.mouse.holding = false;
+    } else {
+        btnNextTurn.textContent = 'Volgende Beurt';
+    }
+  }
+
+  // --- Input Handlers ---
+  function setPointer(t){ 
+    const r=cvs.getBoundingClientRect(); 
+    state.mouse.x = (t.clientX-r.left)*DPR;
+    state.mouse.y = (t.clientY-r.top)*DPR;
+  }
+  cvs.addEventListener('pointermove', e => { setPointer(e); });
+  cvs.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (e.button !== 0) return; 
+    if (state.gamePhase !== 'playing') return; 
+    state.mouse.holding = true;
+    state.mouse.clickStartTime = performance.now();
+  });
+  cvs.addEventListener('pointerup', e => {
+    e.preventDefault();
+    if (e.button !== 0) return; 
+    if (!state.mouse.holding) return;
+    const clickDuration = performance.now() - state.mouse.clickStartTime;
+    state.mouse.holding = false; 
+    if (clickDuration < MIN_HOLD_TIME_MS) { return; }
+    if (state.gamePhase === 'playing') {
+        throwDartAt(state.aim.tx, state.aim.ty);
+    }
+  });
+  videoPopup.onclick = () => { video180.pause(); videoPopup.style.display = 'none'; };
+  video180.onended = () => { videoPopup.style.display = 'none'; };
+  video180.onclick = (e) => e.stopPropagation();
+  
+  function throwDartAt(tx, ty) {
+    if (state.gamePhase !== 'playing' || state.turnDarts.length >= 3) return;
+    refreshScoreboard(); 
+    const startX = cvs.width*0.5 + (Math.random()*80-40)*DPR;
+    const startY = cvs.height + 150*DPR;
+    const t0 = performance.now(); 
+    const dur = 400; 
+    const ang = Math.atan2(ty - startY, tx - startX);
+    const arcRandom = 0.5 + Math.random(); 
+    const baseArcHeight = 100 * DPR;
+    const arcHeight = baseArcHeight * arcRandom;
+    const d = {startX, startY, tx, ty, t0, dur, done:false, ang: ang, arcHeight: arcHeight};
+    state.flyingDarts.push(d);
+  }
+
+  // --- Draw Functies ---
+  function drawDart(x,y,angle, flightColor = '#006400'){
+    ctx.save();
+    ctx.translate(x,y); 
+    ctx.rotate(angle);  
+    const s = DPR * 1.2;
+    ctx.translate(-40*s, 0); 
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); 
+    ctx.moveTo(25*s,0); ctx.lineTo(40*s,-2*s); ctx.lineTo(40*s,2*s); 
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#b8860b'; 
+    ctx.lineWidth = 8*s; 
+    ctx.lineCap='butt';
+    ctx.beginPath(); ctx.moveTo(25*s,0); ctx.lineTo(-20*s,0); ctx.stroke();
+    ctx.strokeStyle = '#FDEE00'; 
+    ctx.lineWidth = 2*s;
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.moveTo(20*s, -2*s); ctx.lineTo(-15*s, -2*s); ctx.stroke();
+    ctx.globalAlpha = 1.0;
+    ctx.strokeStyle = '#111'; 
+    ctx.lineWidth = 4*s; 
+    ctx.lineCap='butt';
+    ctx.beginPath(); ctx.moveTo(-20*s,0); ctx.lineTo(-70*s,0); ctx.stroke();
+    ctx.fillStyle = flightColor; 
+    const f = 18*s;
+    ctx.beginPath(); 
+    ctx.moveTo(-70*s,0); ctx.quadraticCurveTo(-86*s,-f,-70*s,-f*1.6); ctx.quadraticCurveTo(-52*s,-f*1.2,-52*s,0); 
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); 
+    ctx.moveTo(-70*s,0); ctx.quadraticCurveTo(-86*s, f,-70*s, f*1.6); ctx.quadraticCurveTo(-52*s, f*1.2,-52*s,0); 
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-60*s, 0); ctx.lineTo(-72*s, f*0.9); ctx.lineTo(-72*s, -f*0.9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+    ctx.restore();
+  }
+
+  function drawAimCursor(t){
+    if (state.gamePhase !== 'playing' || state.turnDarts.length >= 3) return; 
+
+    const x = state.mouse.x;
+    const y = state.mouse.y;
+    state.aim.tx = x;
+    state.aim.ty = y;
+    const holding = state.mouse.holding;
+    const color = holding ? '#FF0000' : '#00FF00';
+    const s = DPR;
+    ctx.save();
+    ctx.translate(x, y); 
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1 * s;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-15 * s, 0); ctx.lineTo(-3 * s, 0); 
+    ctx.moveTo( 15 * s, 0); ctx.lineTo( 3 * s, 0); 
+    ctx.moveTo(0, -15 * s); ctx.lineTo(0, -3 * s); 
+    ctx.moveTo(0,  15 * s); ctx.lineTo(0,  3 * s); 
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 10 * s, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillRect(-0.5 * s, -0.5 * s, 1 * s, 1 * s); 
+    ctx.restore();
+  }
+  
+  function drawOverlay(){
+    if(!state.overlay) return;
+    const [cx,cy] = toCanvasFromImage(cal.cx, cal.cy);
+    const R = toCanvasRadiusFromImage(cal.R_do);
+    const currentRotation = (cal.rot + state.visualRotation) % 360;
+    const currentRotationRad = currentRotation * Math.PI / 180;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(currentRotationRad);
+    ctx.translate(-cx, -cy);
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#00ffe0'; ctx.lineWidth = 2 * DPR;
+    const rings = [RAT.bull,RAT.outerBull,RAT.tripleIn,RAT.tripleOut,RAT.doubleIn,RAT.doubleOut];
+    rings.forEach(r=>{ ctx.beginPath(); ctx.arc(cx,cy,R*r,0,Math.PI*2); ctx.stroke(); });
+    ctx.globalAlpha = 0.25;
+    for(let j=0;j<20;j++){ 
+        const a = (j*18 - 9 - 0) * Math.PI/180;
+        const x = cx + Math.cos(a)*R;
+        const y = cy + Math.sin(a)*R; 
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke(); 
+    }
+    ctx.globalAlpha = 1.0; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `${18 * DPR}px sans-serif`; 
+    const R_num = R * 1.08; 
+    for(let i=0; i<20; i++){
+        const baseAngle = 90 - (i * 18);
+        const rotatedAngle = baseAngle - 0;
+        const angleRad = rotatedAngle * Math.PI/180;
+        const x = cx + Math.cos(angleRad) * R_num;
+        const y = cy - Math.sin(angleRad) * R_num;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-currentRotationRad);
+        ctx.fillText(ORDER[i], 0, 0);
+        ctx.restore();
+    }
+    ctx.restore(); 
+  }
+  
+  function drawBackground(){
+    const cw=cvs.width, ch=cvs.height;
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
+    if(state.showBg && state.bg.ready && state.bg.img){
+      const img = state.bg.img;
+      const {dx,dy,dw,dh} = computeContain(); 
+      ctx.save();
+      const centerX = dx + dw / 2;
+      const centerY = dy + dh / 2;
+      ctx.translate(centerX, centerY);
+      ctx.rotate(state.visualRotation * Math.PI / 180);
+      ctx.translate(-centerX, -centerY);
+      ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
+      ctx.restore(); 
+      return;
+    }
+    ctx.fillStyle = '#222'; ctx.fillRect(0,0,cw,ch);
+  }
+  
+  function draw180Banner(t){
+    if (!state.show180) return;
+    const elapsed = t - state.show180;
+    if (elapsed > 3000) { state.show180 = 0; return; }
+    let alpha = 1.0;
+    if (elapsed < 300) alpha = elapsed / 300;
+    else if (elapsed > 2500) alpha = (3000 - elapsed) / 500;
+    const cw = cvs.width, ch = cvs.height;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.85; ctx.fillStyle = '#111'; ctx.fillRect(0, ch * 0.35, cw, ch * 0.3);
+    ctx.globalAlpha = alpha; ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fontSize = Math.min(cw, ch) * 0.2; 
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 20 * DPR;
+    ctx.fillText('180!!', cw / 2, ch / 2);
+    ctx.restore();
+  }
+  
+  function drawStuckDarts() {
+    for (const d of state.allDarts) {
+      drawDart(d.sx, d.sy, d.ang, d.flightColor);
+    }
+  }
+  
+  function updateAndDrawFlyingDarts(t) {
+    const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+    const currentPlayer = state.players[state.currentPlayerIndex];
+    
+    for (let i = state.flyingDarts.length - 1; i >= 0; i--) {
+        const d = state.flyingDarts[i];
+        
+        const k = Math.min(1, (t - d.t0) / d.dur); 
+        const e = easeOutCubic(k); 
+        const x = d.startX + (d.tx - d.startX) * e;
+        const arc = Math.sin(k * Math.PI) * d.arcHeight;
+        const y = (d.startY + (d.ty - d.startY) * e) - arc; 
+        const arcSlope = Math.cos(k * Math.PI); 
+        const flightAngleFactor = (d.arcHeight / (400 * DPR)); 
+        const flightAngle = d.ang - (arcSlope * flightAngleFactor);
+        
+        drawDart(x, y, flightAngle, currentPlayer.flightColor);
+        
+        if (k >= 1 && !d.done) {
+            d.done = true;
+            thunk();
+            const result = scoreAtCanvas(d.tx, d.ty); 
+            
+            const [calCX, calCY] = toCanvasFromImage(cal.cx, cal.cy);
+            const R = toCanvasRadiusFromImage(cal.R_do) || 1; 
+            const normX = Math.max(-1, Math.min(1, (d.tx - calCX) / R));
+            const normY = Math.max(-1, Math.min(1, (d.ty - calCY) / R));
+            const perspectiveFactor = 0.12; 
+            const perspectiveWobble = (normY * perspectiveFactor) + (normX * perspectiveFactor);
+            const randomWobble = (Math.random() - 0.5) * 0.05; 
+            const finalAngle = d.ang + perspectiveWobble + randomWobble;
+            
+            state.allDarts.push({ sx: d.tx, sy: d.ty, ang: finalAngle, result: result, flightColor: currentPlayer.flightColor });
+            state.turnDarts.push(result);
+            state.flyingDarts.splice(i, 1);
+            
+            checkGameLogic(result);
+            
+            if (state.rotationMode && state.gamePhase !== 'gameover') {
+                state.visualRotation = (state.visualRotation + 90) % 360;
+            }
+        }
+    }
+  }
+
+  function checkGameLogic(lastDartResult) {
+      const player = state.players[state.currentPlayerIndex];
+      const turnScore = state.turnDarts.reduce((acc, d) => acc + d.score, 0);
+      let newScore = state.turnStartScore - turnScore;
+      let message = "";
+
+      if (newScore === 0 && lastDartResult.ring === 'double') {
+          player.score = 0;
+          state.gamePhase = 'gameover';
+          message = `🏆 GAME SHOT, ${player.name}! 🏆`;
+      }
+      else if (newScore < 0 || newScore === 1) {
+          player.score = state.turnStartScore; 
+          state.gamePhase = 'turnover'; 
+          message = "BUST!";
+      }
+      else if (newScore === 0 && lastDartResult.ring !== 'double') {
+          player.score = state.turnStartScore;
+          state.gamePhase = 'turnover';
+          message = "BUST! (Geen double)";
+      }
+      else {
+          player.score = newScore;
+          if (state.turnDarts.length === 3 && turnScore === 180) {
+              hundoEighty(); 
+              state.show180 = performance.now(); 
+              videoPopup.style.display = 'grid';
+              video180.currentTime = 0;
+              video180.play().catch(e => console.warn("Video autoplay mislukt:", e));
+          }
+      }
+
+      if (state.turnDarts.length === 3 && state.gamePhase === 'playing') {
+          state.gamePhase = 'turnover'; 
+      }
+      
+      refreshScoreboard(message);
+  }
+
+  // --- Hoofd Game Loop ---
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min(0.033, (now-last)/1000); 
+    last = now;
+    state.t += dt;
+    drawBackground();
+    drawOverlay();
+    drawStuckDarts();
+    updateAndDrawFlyingDarts(now);
+    draw180Banner(now);
+    drawAimCursor(state.t);
+    requestAnimationFrame(loop);
+  }
+  
+  function nextTurn() {
+      if (state.gamePhase === 'gameover') {
+          location.reload();
+          return;
+      }
+      state.allDarts = []; 
+      state.turnDarts = [];
+      state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+      state.turnStartScore = state.players[state.currentPlayerIndex].score; 
+      state.gamePhase = 'playing';
+      refreshScoreboard();
+  }
+
+  // AANGEPAST: v0.26 - Leest nu de invoervelden voor namen
+  function startGame() {
+      const selectedTypeBtn = document.querySelector('#gameTypeOptions button.selected');
+      const gameType = selectedTypeBtn.dataset.value;
+      
+      if (gameType.includes('Rotatie')) {
+          state.rotationMode = true;
+      }
+      state.startScore = parseInt(gameType.replace('Rotatie ', ''), 10);
+      
+      state.players = [];
+      for (let i = 0; i < state.playerCount; i++) {
+          const inputEl = document.getElementById(`player${i}`);
+          const playerName = (inputEl && inputEl.value) ? inputEl.value : `Speler ${i + 1}`;
+          
+          state.players.push({
+              name: playerName,
+              score: state.startScore,
+              flightColor: FLIGHT_COLORS[i % FLIGHT_COLORS.length]
+          });
+      }
+      
+      state.currentPlayerIndex = 0;
+      state.turnStartScore = state.startScore; 
+      state.gamePhase = 'playing';
+      
+      gameSetupEl.style.display = 'none';
+      wrapEl.style.display = 'grid';
+      
+      refreshScoreboard();
+      requestAnimationFrame(loop); 
+  }
+
+  // --- UI Knoppen & Logica ---
+  const ctrl = document.getElementById('ctrl');
+  const btnDebug = document.getElementById('btnDebug');
+  const btnHideCtrl = document.getElementById('btnHideCtrl'); 
+  function toggleCtrlPanel(explicitHide = false) {
+    const isVisible = ctrl.style.display !== 'none';
+    if (explicitHide || isVisible) { ctrl.style.display = 'none'; btnDebug.textContent = '⚙️ Kalibratie Paneel Tonen'; }
+    else { ctrl.style.display = 'block'; btnDebug.textContent = '⚙️ Kalibratie Paneel Verbergen'; }
+  }
+  btnDebug.onclick = () => toggleCtrlPanel();
+  btnHideCtrl.onclick = () => toggleCtrlPanel(true);
+  const btnToggleBg = document.getElementById('btnToggleBg');
+  btnToggleBg.onclick = ()=>{ if (state.bg.ready) { state.showBg = !state.showBg; btnToggleBg.textContent = state.showBg ? '🖼️ Achtergrond Verbergen' : '🖼️ Achtergrond Tonen'; } };
+  btnNextTurn.onclick = nextTurn;
+  document.getElementById('btnFull').onclick = ()=>{ const el=document.documentElement; if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen).call(el); } else { document.exitFullscreen && document.exitFullscreen(); }};
+  document.getElementById('btnMute').onclick = (e)=>{ audio.muted = !audio.muted; e.currentTarget.setAttribute('aria-pressed', String(audio.muted)); e.currentTarget.textContent = audio.muted? '🔇 Gedempt':'🔈 Geluid'; };
+  document.getElementById('btnTest180').onclick = hundoEighty;
+  document.getElementById('btnOverlay').onclick = ()=>{ state.overlay = !state.overlay; };
+  
+  // AANGEPAST: v0.26 - Nieuwe functie om speler-inputs te tonen
+  function updatePlayerInputs(count) {
+      playerNameInputsEl.innerHTML = ''; // Leegmaken
+      for (let i = 0; i < count; i++) {
+          playerNameInputsEl.innerHTML += `
+              <div class="input-group">
+                <label for="player${i}">Speler ${i + 1}:</label>
+                <input type="text" id="player${i}" class="player-name-input" placeholder="Speler ${i + 1}">
+              </div>
+          `;
+      }
+  }
+
+  document.getElementById('gameTypeOptions').onclick = (e) => {
+      if (e.target.tagName === 'BUTTON') {
+          document.querySelectorAll('#gameTypeOptions button').forEach(b => b.classList.remove('selected'));
+          e.target.classList.add('selected');
+      }
+  };
+  document.getElementById('playerCountOptions').onclick = (e) => {
+      if (e.target.tagName === 'BUTTON') {
+          document.querySelectorAll('#playerCountOptions button').forEach(b => b.classList.remove('selected'));
+          e.target.classList.add('selected');
+          state.playerCount = parseInt(e.target.dataset.value, 10);
+          updatePlayerInputs(state.playerCount); // Update de invoervelden
+      }
+  };
+  document.getElementById('btnStartGame').onclick = startGame;
+
+
+  // --- Kalibratie Knoppen ---
+  const rotVal = document.getElementById('rotVal'), cxVal = document.getElementById('cxVal'), cyVal = document.getElementById('cyVal'), rVal = document.getElementById('rVal');
+  const saveCal = document.getElementById('saveCal'), resetCal = document.getElementById('resetCal');
+  function updateLabels(){
+    cal.rot = (cal.rot % 360 + 360) % 360; 
+    rotVal.textContent = `= ${cal.rot.toFixed(2)}°`;
+    cxVal.textContent = `= ${cal.cx.toFixed(1)} px`;
+    cyVal.textContent = `= ${cal.cy.toFixed(1)} px`;
+    rVal.textContent  = `= ${cal.R_do.toFixed(2)} px`;
+  }
+  updateLabels();
+  let intervalId = null; const HOLD_DELAY = 80; 
+  function clearHold() { if (intervalId !== null) { clearInterval(intervalId); intervalId = null; } }
+  function setupHoldableButton(button, action) {
+    button.addEventListener('pointerdown', (e) => { e.preventDefault(); action(); intervalId = setInterval(() => { action(); }, HOLD_DELAY); });
+    button.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+    button.addEventListener('pointerup', clearHold); button.addEventListener('pointerleave', clearHold); button.addEventListener('pointercancel', clearHold);
+  }
+  setupHoldableButton(document.getElementById('rotLargeM'), ()=>{ cal.rot -= 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotLargeP'), ()=>{ cal.rot += 5.0; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotM'),      ()=>{ cal.rot -= 0.5; updateLabels(); });
+  setupHoldableButton(document.getElementById('rotP'),      ()=>{ cal.rot += 0.5; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxLargeM'),  ()=>{ cal.cx -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxLargeP'),  ()=>{ cal.cx += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxM'),       ()=>{ cal.cx -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cxP'),       ()=>{ cal.cx += 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyLargeM'),  ()=>{ cal.cy -= 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyLargeP'),  ()=>{ cal.cy += 20; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyM'),       ()=>{ cal.cy -= 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('cyP'),       ()=>{ cal.cy += 2; updateLabels(); });
+  setupHoldableButton(document.getElementById('rLargeM'),   ()=>{ cal.R_do *= 0.98; updateLabels(); });
+  setupHoldableButton(document.getElementById('rLargeP'),   ()=>{ cal.R_do *= 1.02; updateLabels(); });
+  setupHoldableButton(document.getElementById('rM'),        ()=>{ cal.R_do *= 0.998; updateLabels(); });
+  setupHoldableButton(document.getElementById('rP'),        ()=>{ cal.R_do *= 1.002; updateLabels(); });
+  saveCal.onclick = ()=>{ try{ localStorage.setItem(STORAGE, JSON.stringify(cal)); }catch{} };
+  resetCal.onclick = ()=>{ cal = {...defaultCal}; try{ localStorage.removeItem(STORAGE); }catch{}; updateLabels(); };
+
+  // --- Init ---
+  updatePlayerInputs(1); // Toon 1 input-veld bij de start
+})();
+</script>
+</body>
+</html>
